@@ -54,6 +54,7 @@ img{max-width:100%}
 .brand span{color:var(--muted);font-weight:500;font-size:20px}
 .nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;text-decoration:none;color:var(--muted);font-weight:500}
 .nav a svg{width:22px;height:22px;flex:none}
+.nav .sm{display:none}
 .nav a.on{color:var(--ink);background:var(--chip)}
 .nav a.on svg{color:var(--red)}
 .rail .papel{margin-top:auto;font-size:13px;color:var(--muted);padding:10px 12px}
@@ -63,8 +64,10 @@ main{padding:28px 32px 60px;max-width:1100px;width:100%;min-width:0}
   .rail{position:fixed;left:0;right:0;bottom:0;top:auto;height:auto;flex-direction:row;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));border-right:0;border-top:1px solid var(--line);z-index:20}
   .rail .brand,.rail .papel{display:none}
   .nav{display:flex;width:100%;justify-content:space-around}
-  .nav a{flex-direction:column;gap:2px;font-size:11px;padding:6px 4px;flex:1;text-align:center}
+  .nav a{flex-direction:column;gap:2px;font-size:10px;padding:6px 0;flex:1;text-align:center;min-width:0;letter-spacing:-.1px}
   .nav a.on{background:none}
+  .nav .lg{display:none}
+  .nav .sm{display:inline}
   main{padding:18px 16px 110px}
 }
 
@@ -380,6 +383,10 @@ function normalizar(){
   Object.entries(S.alunos).forEach(([id, a]) => { a.id = id; a.mods = arr(a.mods); a.historico = arr(a.historico); a.pesos = arr(a.pesos); });
   Object.values(S.campeonatos).forEach(x => { x.inscritos = arr(x.inscritos); });
   Object.values(S.presencas).forEach(x => { x.alunos ||= {}; });
+  S.fin ||= {}; ['mensalidades','lancamentos','vendas','produtos'].forEach(k => { S.fin[k] ||= {}; });
+  Object.values(S.fin.produtos).forEach(p => { p.estoque ||= {}; });
+  S.config.pix ??= '';
+  S.config.msgCobranca ??= 'Olá, {nome}! Tudo bem? Passando para lembrar da mensalidade de {mes} da SAFE, no valor de {valor}, com vencimento em {vencimento}. Chave Pix: {pix}. Se já pagou, desconsidere. Oss!';
 }
 function carregar(){
   if (ONLINE){
@@ -426,11 +433,12 @@ const ICON = {
   alunos:'<circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.6.8 2.7 2.5 3 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   presenca:'<rect x="4" y="4" width="16" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 2.5v3M16 2.5v3M8.5 13l2.5 2.5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   graduacoes:'<path d="M2 10h20v4H2z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 10v4M17 10v4M10 14l-2 7M12 14l2 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  financeiro:'<rect x="2.5" y="6" width="19" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 9.5v5M18 9.5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   competicao:'<circle cx="12" cy="15" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 10.5L5 3h4l3 6 3-6h4l-3.5 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
   mais:'<circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
 };
-const NAV = [['inicio','Início'],['alunos','Alunos'],['presenca','Presença'],['graduacoes','Graduação'],['competicao','Competição'],['mais','Ajustes']];
-const ui = {busca:'', fMod:'', fStatus:'ativo', gradFiltro:'todos', gradTab:'alunos', presTab:'chamada', presData:hoje(), rankPer:'mes', rankMod:'', maisTab:'grade', chamadaBusca:'', compTab:'atletas', compEdit:false, sim:{sexo:'Masculino', ano:1995, peso:75}, golpe:{idade:25, faixa:'branca', formato:'gi', divisao:'adulto'}};
+const NAV = [['inicio','Início'],['alunos','Alunos'],['presenca','Presença'],['graduacoes','Graduação','Faixas'],['competicao','Competição','Lutas'],['financeiro','Financeiro','Finanças'],['mais','Ajustes']];
+const ui = {busca:'', fMod:'', fStatus:'ativo', gradFiltro:'todos', gradTab:'alunos', presTab:'chamada', presData:hoje(), rankPer:'mes', rankMod:'', maisTab:'grade', chamadaBusca:'', compTab:'atletas', compEdit:false, sim:{sexo:'Masculino', ano:1995, peso:75}, golpe:{idade:25, faixa:'branca', formato:'gi', divisao:'adulto'}, finTab:'resumo', finMes:hoje().slice(0, 7), finFiltro:'todos', finMod:'', finSt:'pendentes'};
 
 function rota(){ const h = location.hash.replace(/^#\/?/, '') || 'inicio'; return h.split('/'); }
 function render(){
@@ -439,9 +447,9 @@ function render(){
   $('.rail').style.display = '';
   const [v, ...args] = rota();
   const sec = {aluno:'alunos', chamada:'presenca'}[v] || v;
-  $('#nav').innerHTML = NAV.map(([id, nome]) => `<a href="#/${id}" class="${sec === id ? 'on' : ''}" ${sec === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg>${nome}</a>`).join('');
+  $('#nav').innerHTML = NAV.filter(([id]) => id !== 'financeiro' || isAdmin()).map(([id, nome, curto]) => `<a href="#/${id}" class="${sec === id ? 'on' : ''}" ${sec === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg><span class="lg">${nome}</span><span class="sm" aria-hidden="true">${curto || nome}</span></a>`).join('');
   $('#papel').textContent = (ONLINE && S.meta.nome ? S.meta.nome + ', ' : '') + (isAdmin() ? 'administrador' : 'professor');
-  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, competicao:viewCompeticao, mais:viewMais};
+  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, competicao:viewCompeticao, financeiro:viewFinanceiro, mais:viewMais};
   $('#main').innerHTML = (views[v] || viewInicio)(...args);
   const after = {alunos:listaAlunos, chamada:() => listaChamada(args[0], args[1]), competicao:simAtualiza}[v];
   if (after) after();
@@ -888,7 +896,11 @@ function viewMais(){
     <div class="tbl-wrap"><table><thead><tr><th>Custo fixo mensal</th><th>Valor (R$)</th><th></th></tr></thead><tbody>
     ${S.config.custos.fixos.map((f, i) => `<tr><td><input type="text" value="${esc(f.nome)}" data-bind="custos.fixos.${i}.nome" aria-label="Nome do custo"></td><td style="width:130px"><input type="number" value="${f.valor}" data-bind="custos.fixos.${i}.valor" data-num aria-label="Valor"></td><td><button class="btn small danger" data-act="del-custo" data-i="${i}">Remover</button></td></tr>`).join('')}
     </tbody></table></div><button class="btn ghost" style="margin-top:12px" data-act="add-custo">Adicionar custo fixo</button>
-    <p class="muted small">Custos variáveis serão lançados no módulo Financeiro (próxima fase).</p>`;
+    <p class="muted small">Custos variáveis (manutenção, compras, eventos) são lançados em Financeiro, Receitas e custos.</p>
+    <h3 style="margin:26px 0 8px">Cobrança pelo WhatsApp</h3>
+    <div class="field" style="max-width:420px"><label for="cfPix">Chave Pix da academia</label><input type="text" id="cfPix" value="${esc(S.config.pix)}" data-bind="pix" placeholder="CNPJ, e-mail, telefone ou chave aleatória"></div>
+    <div class="field"><label for="cfMsg">Mensagem de cobrança</label><textarea id="cfMsg" data-bind="msgCobranca">${esc(S.config.msgCobranca)}</textarea></div>
+    <p class="muted small">O app troca automaticamente {nome}, {mes}, {valor}, {vencimento} e {pix} pelos dados de cada aluno.</p>`;
   } else if (ui.maisTab === 'faixas'){
     c = `<p class="muted small">Valores padrão do Sistema de Graduação IBJJF. Altere se a regra mudar ou se a academia usar critério próprio.</p>
     <label class="check" style="margin-bottom:14px"><input type="checkbox" data-exigir-graus ${S.config.exigirGraus !== false ? 'checked' : ''}>Critério da academia: só indicar troca de faixa quando o aluno tiver todos os graus</label>
@@ -1324,6 +1336,283 @@ function importarForms(txt){
   return {novos, dup};
 }
 
+/* ============ Financeiro ============ */
+const fmtR = v => (Number(v) || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+const fmtR0 = v => (Number(v) || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
+const fmtRk = v => { v = Number(v) || 0; return Math.abs(v) >= 1000 ? `R$ ${(v / 1000).toLocaleString('pt-BR', {maximumFractionDigits:1})}k` : `R$ ${Math.round(v)}`; };
+const mesAtual = () => hoje().slice(0, 7);
+const addMes = (m, n) => { const [y, mm] = m.split('-').map(Number); const d = new Date(y, mm - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth()+1)}`; };
+const nomeMes = m => { const [y, mm] = m.split('-').map(Number); return `${MESES[mm-1]} de ${y}`; };
+const mesCurto = m => MESES[Number(m.slice(5)) - 1].slice(0, 3);
+const diasNoMes = m => { const [y, mm] = m.split('-').map(Number); return new Date(y, mm, 0).getDate(); };
+const FORMAS = ['Pix','Dinheiro','Cartão de crédito','Cartão de débito','Transferência'];
+const CAT_CUSTO = ['Manutenção','Limpeza','Material de treino','Marketing','Eventos e campeonatos','Estoque (compra de produtos)','Taxas e impostos','Outros'];
+const CAT_RECEITA = ['Aula avulsa','Seminário','Exame de graduação','Evento','Outros'];
+const planoDe = a => S.config.planos.find(p => p.id === a.plano);
+function valorMensal(a){
+  const p = planoDe(a); if (!p) return null;
+  if (a.bolsa === 'integral') return 0;
+  let v = Number(p.valor) || 0;
+  if (a.bolsa === 'parcial') v = v * (1 - (Number(a.bolsaPct) || 0) / 100);
+  v -= Number(a.desconto) || 0;
+  return Math.max(0, Math.round(v * 100) / 100);
+}
+function mensalidadesDoMes(m){
+  const regs = S.fin.mensalidades[m] || {}, ids = new Set(Object.keys(regs));
+  Object.values(S.alunos).forEach(a => { if (a.status === 'ativo' && a.plano && (!a.dataMatricula || a.dataMatricula.slice(0, 7) <= m)) ids.add(a.id); });
+  return [...ids].filter(id => S.alunos[id]).map(id => {
+    const a = S.alunos[id], r = regs[id] || null, plano = planoDe(a);
+    const previsto = r && r.valor != null ? Number(r.valor) : (valorMensal(a) ?? 0);
+    const venc = `${m}-${pad(Math.min(Number(a.vencimento) || 10, diasNoMes(m)))}`;
+    const st = r && r.pago ? 'pago' : previsto === 0 ? 'isento' : hoje() > venc ? 'atrasado' : 'aberto';
+    return {a, r, plano, previsto, valor: st === 'pago' ? Number(r.valorPago ?? previsto) : previsto, venc, st};
+  });
+}
+function resumoMes(m){
+  const ms = mensalidadesDoMes(m);
+  const mensPagas = ms.filter(x => x.st === 'pago').reduce((s, x) => s + x.valor, 0);
+  const aReceber = ms.filter(x => x.st === 'aberto' || x.st === 'atrasado').reduce((s, x) => s + x.valor, 0);
+  const atrasado = ms.filter(x => x.st === 'atrasado').reduce((s, x) => s + x.valor, 0);
+  const previsto = ms.filter(x => x.st !== 'isento').reduce((s, x) => s + x.previsto, 0);
+  const vendas = Object.values(S.fin.vendas).filter(v => (v.data || '').startsWith(m));
+  const vendasPagas = vendas.filter(v => v.pago).reduce((s, v) => s + v.qtd * v.preco, 0);
+  const lucroVendas = vendas.filter(v => v.pago).reduce((s, v) => s + v.qtd * (v.preco - (Number(v.custo) || 0)), 0);
+  const lanc = Object.values(S.fin.lancamentos).filter(l => (l.data || '').startsWith(m));
+  const outras = lanc.filter(l => l.tipo === 'receita').reduce((s, l) => s + Number(l.valor || 0), 0);
+  const variaveis = lanc.filter(l => l.tipo === 'custo');
+  const cond = mensPagas * (Number(S.config.custos.condominioPct) || 0) / 100;
+  const fixos = S.config.custos.fixos.map(f => ({nome:f.nome, valor:Number(f.valor) || 0}));
+  const custos = cond + fixos.reduce((s, f) => s + f.valor, 0) + variaveis.reduce((s, l) => s + Number(l.valor || 0), 0);
+  const receita = mensPagas + vendasPagas + outras;
+  const pagantes = ms.filter(x => x.st === 'pago' && x.valor > 0).length;
+  return {ms, mensPagas, aReceber, atrasado, previsto, vendasPagas, lucroVendas, outras, variaveis, cond, fixos, custos, receita, liquido:receita - custos, pagantes, ticket:pagantes ? mensPagas / pagantes : 0};
+}
+function primeiroMesComDados(){
+  const ds = [...Object.keys(S.fin.mensalidades), ...Object.values(S.fin.vendas).map(v => (v.data || '').slice(0, 7)), ...Object.values(S.fin.lancamentos).map(l => (l.data || '').slice(0, 7))].filter(Boolean).sort();
+  return ds[0] || mesAtual();
+}
+function graficoMeses(meses, dados){
+  const n = meses.length, W = Math.max(420, n * 110), H = 250, pl = 8, pb = 38, pt = 16, gw = (W - pl * 2) / n;
+  const max = Math.max(1, ...dados.flatMap(d => [d.receita, d.custos]));
+  const y = v => pt + (H - pt - pb) * (1 - Math.max(0, v) / max);
+  let g = `<line x1="0" x2="${W}" y1="${H - pb}" y2="${H - pb}" stroke="var(--line)"/>`;
+  const bw = Math.min(26, gw * 0.3);
+  dados.forEach((d, i) => {
+    const cx = pl + gw * i + gw / 2;
+    g += `<rect x="${cx - bw - 1}" y="${y(d.receita)}" width="${bw}" height="${H - pb - y(d.receita)}" fill="var(--ink)" rx="2"><title>Receita ${fmtR(d.receita)}</title></rect>`;
+    g += `<rect x="${cx + 1}" y="${y(d.custos)}" width="${bw}" height="${H - pb - y(d.custos)}" fill="var(--red)" rx="2"><title>Custos ${fmtR(d.custos)}</title></rect>`;
+    g += `<text x="${cx}" y="${H - pb + 16}" text-anchor="middle" font-size="13" fill="var(--muted)">${mesCurto(meses[i])}</text>`;
+    g += `<text x="${cx}" y="${H - 4}" text-anchor="middle" font-size="12" font-weight="600" fill="${d.liquido >= 0 ? 'var(--ok)' : 'var(--red)'}">${fmtRk(d.liquido)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Receita e custos por mês" style="max-width:${W}px;display:block">${g}</svg>
+  <p class="small muted" style="margin:6px 0 0"><i class="dot" style="background:var(--ink)"></i> Receita <i class="dot" style="background:var(--red);margin-left:12px"></i> Custos <span style="color:var(--ok);margin-left:12px;font-weight:600">Valor embaixo</span> = resultado líquido</p>`;
+}
+function barrasH(itens, fmt = fmtR){
+  const max = Math.max(1, ...itens.map(i => i.valor));
+  return itens.length ? itens.map(i => `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;font-size:15px"><span>${i.cor ? `<i class="dot" style="background:${i.cor}"></i> ` : ''}${esc(i.nome)}</span><strong>${fmt(i.valor)}</strong></div><div class="bar"><i style="width:${Math.round(i.valor / max * 100)}%;${i.cor ? `background:${i.cor}` : ''}"></i></div></div>`).join('') : '<p class="muted small">Sem dados.</p>';
+}
+function viewFinanceiro(){
+  if (!isAdmin()) return `<div class="empty">O financeiro é visível apenas para administradores.</div>`;
+  const tabs = [['resumo','Resumo'],['mensalidades','Mensalidades'],['lancamentos','Receitas e custos'],['produtos','Produtos e vendas']];
+  const m = ui.finMes;
+  const seletor = `<div class="filters" style="align-items:flex-end"><div class="field" style="max-width:220px;margin:0"><label for="finMes">Mês</label><input type="month" id="finMes" value="${m}"></div>
+    <span style="display:flex;gap:6px;flex:0"><button class="btn small ghost" data-act="finMesNav" data-n="-1" aria-label="Mês anterior">‹</button><button class="btn small ghost" data-act="finMesNav" data-n="1" aria-label="Próximo mês">›</button></span></div>`;
+  const corpo = {resumo:finResumo, mensalidades:finMensalidades, lancamentos:finLancamentos, produtos:finProdutos}[ui.finTab](m);
+  return `<div class="head"><h1>Financeiro</h1></div>
+  <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.finTab === id}" class="${ui.finTab === id ? 'on' : ''}" data-act="finTab" data-v="${id}">${t}</button>`).join('')}</div>${seletor}${corpo}`;
+}
+function finResumo(m){
+  const r = resumoMes(m);
+  const ini = [primeiroMesComDados(), addMes(m, -11)].sort()[1];
+  const meses = []; for (let x = ini; x <= m; x = addMes(x, 1)) meses.push(x);
+  const serie = meses.map(resumoMes);
+  const ativos = alunosAtivos(), semPlano = ativos.filter(a => !a.plano).length;
+  const inad = r.previsto ? r.atrasado / r.previsto * 100 : 0;
+  // por plano e modalidade (previsto do mês)
+  const porPlano = {}, porMod = {};
+  r.ms.filter(x => x.st !== 'isento').forEach(x => {
+    const nm = x.plano ? x.plano.nome : 'Sem plano'; porPlano[nm] = (porPlano[nm] || 0) + x.previsto;
+    const mods = (x.a.mods || []).filter(id => !x.plano || x.plano.mods.includes(id)); const lista = mods.length ? mods : ['?'];
+    lista.forEach(id => { porMod[id] = (porMod[id] || 0) + x.previsto / lista.length; });
+  });
+  // bolsas e descontos
+  const f = ui.finFiltro;
+  const bene = ativos.filter(a => a.plano && (a.bolsa === 'integral' || a.bolsa === 'parcial' || Number(a.desconto) > 0))
+    .filter(a => f === 'todos' || (f === 'bolsa' && a.bolsa !== 'nenhuma' && a.bolsa) || (f === 'indicacao' && a.descontoMotivo === 'Indicação') || (f === 'desconto' && Number(a.desconto) > 0))
+    .filter(a => !ui.finMod || (a.mods || []).includes(ui.finMod))
+    .map(a => ({a, cheio:Number(planoDe(a)?.valor) || 0, paga:valorMensal(a) || 0}));
+  const renuncia = bene.reduce((s, b) => s + b.cheio - b.paga, 0);
+  const card = (v, t, cor) => `<div class="num"><strong style="font-size:26px;white-space:nowrap${cor ? `;color:${cor}` : ''}">${v}</strong><span>${t}</span></div>`;
+  return `${semPlano ? `<div class="notice">${semPlano} aluno(s) ativo(s) sem plano definido não entram na cobrança. <a href="#/alunos">Definir na ficha de cada um</a>.</div>` : ''}
+  <div class="numeros" style="grid-template-columns:repeat(auto-fit,minmax(165px,1fr))">
+    ${card(fmtR0(r.receita), 'receita recebida no mês')}${card(fmtR0(r.custos), 'custos do mês')}${card(fmtR0(r.liquido), 'resultado líquido', r.liquido >= 0 ? 'var(--ok)' : 'var(--red)')}
+    ${card(fmtR0(r.aReceber), 'mensalidades a receber')}${card(`${inad.toLocaleString('pt-BR', {maximumFractionDigits:1})}%`, 'inadimplência (atrasado ÷ previsto)', inad > 10 ? 'var(--red)' : '')}${card(fmtR0(r.ticket), `ticket médio (${r.pagantes} pagantes)`)}
+  </div>
+  <div class="panel"><h3 style="margin-bottom:10px">Receita e custos por mês</h3><div class="tbl-wrap">${graficoMeses(meses, serie)}</div></div>
+  <div class="grid2" style="gap:0 16px;align-items:start">
+    <div class="panel"><h3 style="margin-bottom:10px">De onde veio o dinheiro</h3>${barrasH([{nome:'Mensalidades', valor:r.mensPagas},{nome:'Venda de produtos', valor:r.vendasPagas},{nome:'Outras receitas', valor:r.outras}])}
+      <p class="muted small">Lucro bruto das vendas no mês: ${fmtR(r.lucroVendas)}.</p></div>
+    <div class="panel"><h3 style="margin-bottom:10px">Para onde foi</h3>${barrasH([{nome:`Condomínio (${S.config.custos.condominioPct}% das mensalidades)`, valor:r.cond}, ...r.fixos, ...Object.entries(r.variaveis.reduce((o, l) => { o[l.categoria || 'Outros'] = (o[l.categoria || 'Outros'] || 0) + Number(l.valor || 0); return o; }, {})).map(([nome, valor]) => ({nome, valor}))].filter(x => x.valor > 0), fmtR)}</div>
+    <div class="panel"><h3 style="margin-bottom:10px">Mensalidades previstas por plano</h3>${barrasH(Object.entries(porPlano).map(([nome, valor]) => ({nome, valor})).sort((a, b) => b.valor - a.valor))}</div>
+    <div class="panel"><h3 style="margin-bottom:10px">Por modalidade</h3>${barrasH(Object.entries(porMod).map(([id, valor]) => ({nome:mod(id)?.nome || 'Sem modalidade', valor, cor:mod(id)?.cor})).sort((a, b) => b.valor - a.valor))}
+      <p class="muted small">Quem faz mais de uma modalidade no mesmo plano tem o valor dividido igualmente entre elas.</p></div>
+  </div>
+  <div class="panel"><h3 style="margin-bottom:6px">Bolsas e descontos</h3>
+    <div class="filters"><select id="finFiltro" aria-label="Tipo de benefício">${[['todos','Todos os benefícios'],['bolsa','Só bolsistas'],['indicacao','Desconto por indicação'],['desconto','Qualquer desconto em R$']].map(([v, t]) => `<option value="${v}" ${f === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    <select id="finMod" aria-label="Modalidade"><option value="">Todas as modalidades</option>${S.config.modalidades.map(x => `<option value="${x.id}" ${ui.finMod === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></div>
+    <p style="margin:0 0 10px">${bene.length} aluno(s). A academia deixa de receber <strong>${fmtR(renuncia)}</strong> por mês com esses benefícios (${fmtR(renuncia * 12)} por ano).</p>
+    <div class="list">${bene.length ? bene.map(b => `<a class="row" href="#/aluno/${b.a.id}"><span class="grow"><span class="name" style="display:block">${esc(b.a.nome)}</span><span class="meta">${b.a.bolsa === 'integral' ? 'Bolsa integral' : b.a.bolsa === 'parcial' ? `Bolsa ${b.a.bolsaPct || 0}%` : ''}${Number(b.a.desconto) > 0 ? ` Desconto ${fmtR(b.a.desconto)} (${esc(b.a.descontoMotivo || 'sem motivo')})` : ''}</span></span><span class="small">${fmtR(b.paga)} <span class="muted">de ${fmtR(b.cheio)}</span></span></a>`).join('') : '<div class="empty">Nenhum aluno com esse benefício.</div>'}</div></div>`;
+}
+function finMensalidades(m){
+  const todas = mensalidadesDoMes(m);
+  const lst = todas.filter(x => (ui.finSt === 'todos' || x.st === ui.finSt || (ui.finSt === 'pendentes' && (x.st === 'aberto' || x.st === 'atrasado'))) && (!ui.finMod || (x.a.mods || []).includes(ui.finMod)))
+    .sort((a, b) => ({atrasado:0, aberto:1, pago:2, isento:3}[a.st] - {atrasado:0, aberto:1, pago:2, isento:3}[b.st]) || a.a.nome.localeCompare(b.a.nome, 'pt-BR'));
+  const soma = st => todas.filter(x => st.includes(x.st)).reduce((s, x) => s + x.valor, 0);
+  const tag = {pago:'<span class="tag ok">Pago</span>', aberto:'<span class="tag">A vencer</span>', atrasado:'<span class="tag red">Atrasado</span>', isento:'<span class="tag">Isento</span>'};
+  return `<div class="numeros" style="grid-template-columns:repeat(auto-fit,minmax(105px,1fr))">
+    <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap">${fmtR0(soma(['pago']))}</strong><span>recebido</span></div>
+    <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap">${fmtR0(soma(['aberto']))}</strong><span>a vencer</span></div>
+    <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap;color:var(--red)">${fmtR0(soma(['atrasado']))}</strong><span>atrasado</span></div></div>
+  <div class="filters"><select id="finSt" aria-label="Situação">${[['todos','Todas'],['pendentes','Pendentes'],['atrasado','Atrasadas'],['aberto','A vencer'],['pago','Pagas'],['isento','Isentas (bolsa integral)']].map(([v, t]) => `<option value="${v}" ${ui.finSt === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    <select id="finMod" aria-label="Modalidade"><option value="">Todas as modalidades</option>${S.config.modalidades.map(x => `<option value="${x.id}" ${ui.finMod === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></div>
+  <div class="list">${lst.length ? lst.map(x => {
+    const tel = x.a.telefone || x.a.telResp;
+    const msg = (S.config.msgCobranca || '').replace(/\{nome\}/g, x.a.nome.split(' ')[0]).replace(/\{valor\}/g, fmtR(x.valor)).replace(/\{mes\}/g, nomeMes(m)).replace(/\{vencimento\}/g, fmtBR(x.venc)).replace(/\{pix\}/g, S.config.pix || '');
+    return `<div class="row" style="cursor:default;flex-wrap:wrap"><a class="grow" href="#/aluno/${x.a.id}" style="text-decoration:none;min-width:180px"><span class="name" style="display:block">${esc(x.a.nome)}</span>
+      <span class="meta">${tag[x.st]} ${esc(x.plano ? x.plano.nome : 'Sem plano')}, vence ${fmtBR(x.venc).slice(0, 5)}${x.st === 'pago' ? `, pago em ${fmtBR(x.r.dataPag)} (${esc(x.r.forma || '')})` : ''}</span></a>
+      <strong style="font-family:var(--cond);font-size:22px">${fmtR(x.valor)}</strong>
+      <span style="display:flex;gap:6px">${x.st === 'pago' ? `<button class="btn small ghost" data-act="mens-desfazer" data-id="${x.a.id}">Desfazer</button>` : x.st === 'isento' ? '' : `<button class="btn small primary" data-act="mens-receber" data-id="${x.a.id}">Receber</button>${tel && x.st === 'atrasado' ? `<a class="btn small ghost" href="${waLink(tel, msg)}" target="_blank" rel="noopener">Cobrar</a>` : ''}`}</span></div>`;
+  }).join('') : '<div class="empty">Nenhuma mensalidade com esse filtro. Alunos só entram aqui quando estão ativos e têm plano definido na ficha.</div>'}</div>`;
+}
+function formReceber(id){
+  const m = ui.finMes, x = mensalidadesDoMes(m).find(y => y.a.id === id); if (!x) return;
+  abrirModal(`<form id="fRec"><h2>Receber mensalidade</h2><p><strong>${esc(x.a.nome)}</strong><br><span class="muted small">${nomeMes(m)}, ${esc(x.plano ? x.plano.nome : '')}</span></p>
+    <div class="grid3"><div class="field"><label for="rv">Valor recebido (R$)</label><input type="number" step="0.01" id="rv" name="valor" value="${x.previsto}" required></div>
+    <div class="field"><label for="rd">Data</label><input type="date" id="rd" name="data" value="${hoje()}" required></div>
+    <div class="field"><label for="rf">Forma</label><select id="rf" name="forma">${FORMAS.map(f => `<option>${f}</option>`).join('')}</select></div></div>
+    <div class="field"><label for="ro">Observação</label><input type="text" id="ro" name="obs" placeholder="Ex.: pagou com atraso, pagou 2 meses"></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Confirmar recebimento</button></div></form>`);
+  $('#fRec').addEventListener('submit', e => {
+    e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
+    (S.fin.mensalidades[m] ||= {})[id] = {pago:true, valor:x.previsto, valorPago:Number(fd.valor), dataPag:fd.data, forma:fd.forma, obs:fd.obs || ''};
+    salvar(); fecharModal(); render(); toast('Recebimento registrado');
+  });
+}
+function finLancamentos(m){
+  const r = resumoMes(m);
+  const lanc = Object.values(S.fin.lancamentos).filter(l => (l.data || '').startsWith(m)).sort((a, b) => b.data.localeCompare(a.data));
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn primary" data-act="lanc-novo" data-tipo="custo">Lançar custo</button><button class="btn ghost" data-act="lanc-novo" data-tipo="receita">Lançar outra receita</button></div>
+  <div class="panel"><h3 style="margin-bottom:8px">Custos fixos de ${nomeMes(m)} (automáticos)</h3>
+    <div class="list"><div class="row" style="cursor:default"><span class="grow">Condomínio: ${S.config.custos.condominioPct}% de ${fmtR(r.mensPagas)} em mensalidades recebidas</span><strong>${fmtR(r.cond)}</strong></div>
+    ${r.fixos.map(f => `<div class="row" style="cursor:default"><span class="grow">${esc(f.nome)}</span><strong>${fmtR(f.valor)}</strong></div>`).join('')}</div>
+    <p class="muted small">Para mudar valores ou incluir outro custo fixo, vá em Ajustes, Planos e custos.</p></div>
+  <h2>Lançamentos do mês</h2>
+  <div class="list">${lanc.length ? lanc.map(l => `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="grow" style="min-width:180px"><span class="name" style="display:block">${esc(l.descricao || l.categoria)}</span><span class="meta"><span class="tag ${l.tipo === 'custo' ? 'red' : 'ok'}">${l.tipo === 'custo' ? 'Custo' : 'Receita'}</span> ${esc(l.categoria)}, ${fmtBR(l.data)}</span></span><strong style="font-family:var(--cond);font-size:22px;color:${l.tipo === 'custo' ? 'var(--red)' : 'var(--ok)'}">${l.tipo === 'custo' ? '−' : '+'}${fmtR(l.valor)}</strong><button class="btn small danger" data-act="lanc-del" data-id="${l.id}">Apagar</button></div>`).join('') : '<div class="empty">Nenhum lançamento neste mês.</div>'}</div>`;
+}
+function formLancamento(tipo){
+  const cats = tipo === 'custo' ? CAT_CUSTO : CAT_RECEITA;
+  const dataPadrao = ui.finMes === mesAtual() ? hoje() : `${ui.finMes}-01`;
+  abrirModal(`<form id="fLanc"><h2>${tipo === 'custo' ? 'Lançar custo' : 'Lançar receita'}</h2>
+    <div class="grid2"><div class="field"><label for="lc">Categoria</label><select id="lc" name="categoria">${cats.map(c => `<option>${c}</option>`).join('')}</select></div>
+    <div class="field"><label for="lv">Valor (R$)</label><input type="number" step="0.01" id="lv" name="valor" required></div></div>
+    <div class="grid2"><div class="field"><label for="ld">Data</label><input type="date" id="ld" name="data" value="${dataPadrao}" required></div>
+    <div class="field"><label for="lds">Descrição</label><input type="text" id="lds" name="descricao" placeholder="${tipo === 'custo' ? 'Ex.: conserto do ar-condicionado' : 'Ex.: seminário com professor convidado'}"></div></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  $('#fLanc').addEventListener('submit', e => {
+    e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target)); const id = uid();
+    S.fin.lancamentos[id] = {id, tipo, categoria:fd.categoria, valor:Number(fd.valor), data:fd.data, descricao:fd.descricao};
+    salvar(); fecharModal(); render(); toast('Lançamento salvo');
+  });
+}
+const estoqueTotal = p => Object.values(p.estoque || {}).reduce((s, n) => s + (Number(n) || 0), 0);
+const limpaTam = t => String(t).trim().replace(/[.#$\[\]\/]/g, '-');
+function finProdutos(m){
+  const ps = Object.values(S.fin.produtos).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const vendas = Object.values(S.fin.vendas).filter(v => (v.data || '').startsWith(m)).sort((a, b) => b.data.localeCompare(a.data));
+  const valorEstoque = ps.reduce((s, p) => s + estoqueTotal(p) * (Number(p.custo) || 0), 0);
+  const fat = vendas.reduce((s, v) => s + v.qtd * v.preco, 0), lucro = vendas.reduce((s, v) => s + v.qtd * (v.preco - (Number(v.custo) || 0)), 0);
+  return `<div class="numeros" style="grid-template-columns:repeat(auto-fit,minmax(105px,1fr))">
+    <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap">${fmtR0(fat)}</strong><span>vendido no mês</span></div>
+    <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap;color:var(--ok)">${fmtR0(lucro)}</strong><span>lucro bruto das vendas</span></div>
+    <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap">${fmtR0(valorEstoque)}</strong><span>parado em estoque (custo)</span></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn primary" data-act="venda-nova">Registrar venda</button><button class="btn ghost" data-act="prod-edit">Novo produto</button></div>
+  <h2>Produtos</h2>
+  <div class="list" style="margin-bottom:22px">${ps.length ? ps.map(p => {
+    const tot = estoqueTotal(p), margem = p.preco ? (p.preco - (p.custo || 0)) / p.preco * 100 : 0;
+    const baixos = Object.entries(p.estoque || {}).filter(([, n]) => Number(n) <= (Number(p.estoqueMin) || 0));
+    return `<div class="row" style="cursor:default;flex-wrap:wrap;align-items:flex-start"><span class="grow" style="min-width:200px"><span class="name" style="display:block">${esc(p.nome)}</span>
+      <span class="meta"><span class="tag">${esc(p.categoria)}</span> custo ${fmtR(p.custo)}, venda ${fmtR(p.preco)}, margem ${margem.toFixed(0)}%</span>
+      <span class="meta" style="margin-top:4px">${Object.entries(p.estoque || {}).map(([t, n]) => `<span class="tag ${Number(n) <= (Number(p.estoqueMin) || 0) ? 'red' : ''}">${esc(t)}: ${n}</span>`).join('') || 'Sem tamanhos cadastrados'}</span>
+      ${baixos.length ? `<span class="small" style="color:var(--red)">Estoque baixo em ${baixos.map(b => esc(b[0])).join(', ')}</span>` : ''}</span>
+      <strong style="font-family:var(--cond);font-size:22px">${tot} un.</strong>
+      <span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small ghost" data-act="prod-entrada" data-id="${p.id}">Entrada</button><button class="btn small ghost" data-act="prod-edit" data-id="${p.id}">Editar</button></span></div>`;
+  }).join('') : '<div class="empty">Cadastre kimonos, camisas, faixas e outros produtos em "Novo produto".</div>'}</div>
+  <h2>Vendas de ${nomeMes(m)}</h2>
+  <div class="list">${vendas.length ? vendas.map(v => `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="grow" style="min-width:180px"><span class="name" style="display:block">${esc(v.produtoNome)} ${esc(v.tam)}${v.qtd > 1 ? ` (${v.qtd} un.)` : ''}</span><span class="meta">${fmtBR(v.data)}${v.aluno ? `, ${esc(v.aluno)}` : ''}, ${esc(v.forma)} ${v.pago ? '<span class="tag ok">Pago</span>' : '<span class="tag red">A receber</span>'}</span></span>
+    <strong style="font-family:var(--cond);font-size:22px">${fmtR(v.qtd * v.preco)}</strong>
+    <span style="display:flex;gap:6px">${v.pago ? '' : `<button class="btn small primary" data-act="venda-pagar" data-id="${v.id}">Recebido</button>`}<button class="btn small danger" data-act="venda-del" data-id="${v.id}">Apagar</button></span></div>`).join('') : '<div class="empty">Nenhuma venda neste mês.</div>'}</div>`;
+}
+function formProduto(id){
+  const p = id ? S.fin.produtos[id] : {nome:'', categoria:'Kimono', custo:'', preco:'', estoqueMin:1, estoque:{}};
+  const tams = Object.keys(p.estoque || {});
+  abrirModal(`<form id="fProd"><h2>${id ? 'Editar produto' : 'Novo produto'}</h2>
+    <div class="field"><label for="pn">Nome</label><input type="text" id="pn" name="nome" required value="${esc(p.nome)}" placeholder="Ex.: Kimono SAFE branco"></div>
+    <div class="grid2"><div class="field"><label for="pc">Categoria</label><select id="pc" name="categoria">${['Kimono','Faixa','Camisa','Rash guard','Bermuda','Acessório','Outros'].map(c => `<option ${p.categoria === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    <div class="field"><label for="pm">Alerta de estoque baixo (un. por tamanho)</label><input type="number" id="pm" name="estoqueMin" value="${esc(p.estoqueMin)}"></div></div>
+    <div class="grid2"><div class="field"><label for="pcu">Preço de custo (R$)</label><input type="number" step="0.01" id="pcu" name="custo" value="${esc(p.custo)}" required></div>
+    <div class="field"><label for="ppv">Preço de venda (R$)</label><input type="number" step="0.01" id="ppv" name="preco" value="${esc(p.preco)}" required></div></div>
+    <div class="field"><label for="pt">Tamanhos (separados por vírgula)</label><input type="text" id="pt" name="tams" value="${esc(tams.join(', '))}" placeholder="Kimono: A0, A1, A2, A3, A4, M0, M1, M2. Camisa: P, M, G, GG. Faixa: único"></div>
+    ${id ? `<p class="muted small">Para somar unidades use o botão Entrada. Aqui você corrige o estoque atual:</p><div class="checks">${tams.map(t => `<label class="check">${esc(t)} <input type="number" name="est-${esc(t)}" value="${p.estoque[t]}" style="width:70px;min-height:32px"></label>`).join('')}</div>` : '<p class="muted small">Depois de salvar, use o botão Entrada para lançar as unidades compradas.</p>'}
+    <div class="actions">${id ? `<button type="button" class="btn danger" data-act="prod-del" data-id="${id}" style="margin-right:auto">Excluir</button>` : ''}<button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  $('#fProd').addEventListener('submit', e => {
+    e.preventDefault(); const fd = new FormData(e.target); const nid = id || uid();
+    const novosTams = String(fd.get('tams') || '').split(',').map(limpaTam).filter(Boolean);
+    const est = {}; (novosTams.length ? novosTams : ['Único']).forEach(t => { est[t] = fd.has(`est-${t}`) ? Number(fd.get(`est-${t}`)) || 0 : (p.estoque && p.estoque[t]) || 0; });
+    S.fin.produtos[nid] = {id:nid, nome:fd.get('nome'), categoria:fd.get('categoria'), custo:Number(fd.get('custo')), preco:Number(fd.get('preco')), estoqueMin:Number(fd.get('estoqueMin')) || 0, estoque:est};
+    salvar(); fecharModal(); render(); toast('Produto salvo');
+  });
+}
+function formEntrada(id){
+  const p = S.fin.produtos[id];
+  abrirModal(`<form id="fEnt"><h2>Entrada de estoque</h2><p><strong>${esc(p.nome)}</strong></p>
+    <div class="checks" style="margin-bottom:12px">${Object.keys(p.estoque).map(t => `<label class="check">${esc(t)} <input type="number" min="0" name="q-${esc(t)}" value="0" style="width:70px;min-height:32px"></label>`).join('')}</div>
+    <div class="grid2"><div class="field"><label for="ec">Custo por unidade (R$)</label><input type="number" step="0.01" id="ec" name="custo" value="${p.custo}"></div>
+    <div class="field"><label for="ed">Data</label><input type="date" id="ed" name="data" value="${hoje()}"></div></div>
+    <label class="check"><input type="checkbox" name="lancar" checked>Lançar o valor da compra como custo do mês</label>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Somar ao estoque</button></div></form>`);
+  $('#fEnt').addEventListener('submit', e => {
+    e.preventDefault(); const fd = new FormData(e.target); const pr = S.fin.produtos[id]; let un = 0;
+    Object.keys(pr.estoque).forEach(t => { const q = Number(fd.get(`q-${t}`)) || 0; pr.estoque[t] = (Number(pr.estoque[t]) || 0) + q; un += q; });
+    if (!un) return toast('Informe a quantidade de pelo menos um tamanho.');
+    const cu = Number(fd.get('custo')) || 0; pr.custo = cu;
+    if (fd.has('lancar') && cu){ const lid = uid(); S.fin.lancamentos[lid] = {id:lid, tipo:'custo', categoria:'Estoque (compra de produtos)', valor:+(cu * un).toFixed(2), data:fd.get('data'), descricao:`${un} un. de ${pr.nome}`}; }
+    salvar(); fecharModal(); render(); toast(`${un} unidade(s) somadas ao estoque`);
+  });
+}
+function formVenda(){
+  const ps = Object.values(S.fin.produtos).filter(p => estoqueTotal(p) > 0).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  if (!ps.length) return toast('Nenhum produto com estoque. Cadastre um produto e lance uma entrada.');
+  abrirModal(`<form id="fVen"><h2>Registrar venda</h2>
+    <div class="grid2"><div class="field"><label for="vp">Produto</label><select id="vp" name="produto">${ps.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></div>
+    <div class="field"><label for="vt">Tamanho</label><select id="vt" name="tam"></select></div></div>
+    <div class="grid3"><div class="field"><label for="vq">Quantidade</label><input type="number" min="1" id="vq" name="qtd" value="1"></div>
+    <div class="field"><label for="vpr">Preço unitário (R$)</label><input type="number" step="0.01" id="vpr" name="preco"></div>
+    <div class="field"><label for="vd">Data</label><input type="date" id="vd" name="data" value="${hoje()}"></div></div>
+    <div class="grid2"><div class="field"><label for="va">Comprador</label><input type="text" id="va" name="aluno" list="dlVenda" placeholder="Opcional"><datalist id="dlVenda">${Object.values(S.alunos).map(a => `<option value="${esc(a.nome)}">`).join('')}</datalist></div>
+    <div class="field"><label for="vf">Forma de pagamento</label><select id="vf" name="forma">${FORMAS.map(f => `<option>${f}</option>`).join('')}</select></div></div>
+    <label class="check"><input type="checkbox" name="pago" checked>Já recebi o pagamento</label>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Registrar venda</button></div></form>`);
+  const sync = () => { const p = S.fin.produtos[$('#vp').value]; $('#vt').innerHTML = Object.entries(p.estoque).map(([t, n]) => `<option value="${esc(t)}" ${Number(n) <= 0 ? 'disabled' : ''}>${esc(t)} (${n} em estoque)</option>`).join(''); const first = Object.entries(p.estoque).find(([, n]) => Number(n) > 0); if (first) $('#vt').value = first[0]; $('#vpr').value = p.preco; };
+  $('#vp').addEventListener('change', sync); sync();
+  $('#fVen').addEventListener('submit', e => {
+    e.preventDefault(); const fd = new FormData(e.target); const p = S.fin.produtos[fd.get('produto')], t = fd.get('tam'), q = Number(fd.get('qtd')) || 1;
+    if ((Number(p.estoque[t]) || 0) < q) return toast(`Só há ${p.estoque[t] || 0} unidade(s) de ${t} em estoque.`);
+    p.estoque[t] = Number(p.estoque[t]) - q; const id = uid();
+    S.fin.vendas[id] = {id, produto:p.id, produtoNome:p.nome, tam:t, qtd:q, preco:Number(fd.get('preco')) || 0, custo:Number(p.custo) || 0, data:fd.get('data'), aluno:fd.get('aluno'), forma:fd.get('forma'), pago:fd.has('pago')};
+    salvar(); fecharModal(); render(); toast('Venda registrada e estoque atualizado');
+  });
+}
+
 /* ============ Versão online (Firebase) ============ */
 const CAMPOS_FIN = ['plano','vencimento','bolsa','bolsaPct','desconto','descontoMotivo'];
 let auth = null, db = null, usuario = null, estadoAuth = ONLINE ? 'carregando' : 'ok', pronto = false, base = {}, R = {};
@@ -1369,7 +1658,7 @@ async function criarPerfil(u){
 function pararDados(){ subsDados.forEach(f => f()); subsDados = []; pronto = false; R = {}; }
 function iniciarDados(){
   pararDados(); render();
-  const paths = ['config','alunos','presencas','campeonatos', ...(isAdmin() ? ['configFin','alunosFin'] : [])];
+  const paths = ['config','alunos','presencas','campeonatos', ...(isAdmin() ? ['configFin','alunosFin','financeiro'] : [])];
   const carregado = {};
   paths.forEach(p => {
     const ref = db.ref(p);
@@ -1391,6 +1680,7 @@ function reconstruir(){
   S.config = R.config ? JSON.parse(JSON.stringify(R.config)) : configPadrao();
   if (R.configFin) Object.assign(S.config, JSON.parse(JSON.stringify(R.configFin)));
   S.alunos = alunos; S.presencas = JSON.parse(JSON.stringify(R.presencas || {})); S.campeonatos = JSON.parse(JSON.stringify(R.campeonatos || {}));
+  S.fin = JSON.parse(JSON.stringify(R.financeiro || {}));
   normalizar(); _idx = null;
   base = mapear(); let iniciar = false;
   if (!R.config){ delete base.config; iniciar = true; }
@@ -1401,9 +1691,13 @@ function reconstruir(){
 }
 function mapear(){
   const m = {}, put = (p, v) => { m[p] = JSON.stringify(v); };
-  const {planos, custos, ...cfg} = S.config;
+  const {planos, custos, pix, msgCobranca, ...cfg} = S.config;
   put('config', cfg);
-  if (isAdmin()) put('configFin', {planos, custos});
+  if (isAdmin()){
+    put('configFin', {planos, custos, pix, msgCobranca});
+    Object.entries(S.fin.mensalidades).forEach(([m, regs]) => Object.entries(regs || {}).forEach(([id, r]) => put(`financeiro/mensalidades/${m}/${id}`, r)));
+    ['lancamentos','vendas','produtos'].forEach(k => Object.entries(S.fin[k]).forEach(([id, v]) => put(`financeiro/${k}/${id}`, v)));
+  }
   Object.values(S.alunos).forEach(a => {
     const f = {}, b = {};
     Object.entries(a).forEach(([k, v]) => { if (k !== 'id' && v !== undefined) (CAMPOS_FIN.includes(k) ? f : b)[k] = v; });
@@ -1544,6 +1838,15 @@ function carregarExemplo(){
     return {aluno:a.id, formato:'gi', categoria:r.erro ? '' : `${r.div}, ${faixa(a.faixa).nome}, ${r.cat}`, status:k % 2 ? 'pendente' : 'pago', resultado:res ? res[k] : ''}; });
   const c1 = uid(), c2 = uid() + 'b';
   S.campeonatos[c1] = {id:c1, nome:'Campeonato Carioca (exemplo)', data:addDias(h, 24), prazo:addDias(h, 5), local:'Rio de Janeiro', federacao:'FJJ-Rio', formato:'gi', valor:'150', link:'', obs:'', inscritos:insc([0, 1, 7, 11])};
+  const mA = hoje().slice(0, 7);
+  [-3, -2, -1, 0].forEach(k => { const m = addMes(mA, k); S.fin.mensalidades[m] = {};
+    Object.values(S.alunos).forEach((a, i) => { const v = valorMensal(a); if (!v) return; if (k === 0 && i % 3 === 0) return; if (k === -1 && i === 5) return;
+      S.fin.mensalidades[m][a.id] = {pago:true, valor:v, valorPago:v, dataPag:`${m}-${pad(Math.min(28, Number(a.vencimento) || 10))}`, forma:FORMAS[i % 3], obs:''}; }); });
+  const p1 = uid(), p2 = uid() + 'c';
+  S.fin.produtos[p1] = {id:p1, nome:'Kimono SAFE branco', categoria:'Kimono', custo:230, preco:420, estoqueMin:1, estoque:{A1:2, A2:1, A3:0, M1:2}};
+  S.fin.produtos[p2] = {id:p2, nome:'Camisa SAFE', categoria:'Camisa', custo:35, preco:80, estoqueMin:2, estoque:{P:3, M:5, G:1, GG:2}};
+  [[p1,'A2',-20],[p2,'M',-12],[p2,'G',-3],[p1,'A1',-45]].forEach(([pid, t, d], i) => { const pr = S.fin.produtos[pid], id = uid() + i; S.fin.vendas[id] = {id, produto:pid, produtoNome:pr.nome, tam:t, qtd:1, preco:pr.preco, custo:pr.custo, data:addDias(h, d), aluno:'', forma:'Pix', pago:i !== 1}; });
+  [['custo','Manutenção',180,-15,'Troca de lâmpadas e reparo no tatame'],['custo','Estoque (compra de produtos)',700,-40,'Camisas SAFE'],['receita','Seminário',900,-25,'Seminário de defesa pessoal']].forEach(([tipo, cat, v, d, desc], i) => { const id = uid() + 'l' + i; S.fin.lancamentos[id] = {id, tipo, categoria:cat, valor:v, data:addDias(h, d), descricao:desc}; });
   S.campeonatos[c2] = {id:c2, nome:'Open Rio (exemplo)', data:addDias(h, -40), prazo:addDias(h, -50), local:'Rio de Janeiro', federacao:'IBJJF', formato:'gi', valor:'180', link:'', obs:'', inscritos:insc([0, 2, 8, 12], ['ouro','bronze','prata','ouro']).map(x => ({...x, status:'pago'}))};
   salvar();
 }
@@ -1588,6 +1891,18 @@ document.addEventListener('click', e => {
     'add-golpe': () => { const g = comp().golpes; g.push({id:uid(), n:g.length + 1, nome:'Nova técnica', desc:'', video:'', proib:[false,false,false,false,false,false]}); salvar(); render(); },
     'reset-comp': async () => { if (await confirmar('Voltar todas as tabelas e regras de competição ao padrão IBJJF? Seus campeonatos e atletas não são afetados.')){ S.config.competicao = compPadrao(); salvar(); render(); } },
     'ver-equipe': () => { ui.maisTab = 'dados'; },
+    'finTab': () => { ui.finTab = el.dataset.v; render(); },
+    'finMesNav': () => { ui.finMes = addMes(ui.finMes, Number(el.dataset.n)); render(); },
+    'mens-receber': () => formReceber(id),
+    'mens-desfazer': async () => { if (await confirmar('Desfazer este recebimento? A mensalidade volta a ficar pendente.', 'Desfazer')){ const regs = S.fin.mensalidades[ui.finMes] || {}; delete regs[id]; salvar(); render(); } },
+    'lanc-novo': () => formLancamento(el.dataset.tipo),
+    'lanc-del': async () => { if (await confirmar('Apagar este lançamento?', 'Apagar')){ delete S.fin.lancamentos[id]; salvar(); render(); } },
+    'prod-edit': () => formProduto(id),
+    'prod-entrada': () => formEntrada(id),
+    'prod-del': async () => { if (await confirmar('Excluir este produto? As vendas já registradas continuam no histórico.', 'Excluir')){ delete S.fin.produtos[id]; salvar(); render(); } },
+    'venda-nova': () => formVenda(),
+    'venda-pagar': () => { S.fin.vendas[id].pago = true; salvar(); render(); toast('Pagamento da venda registrado'); },
+    'venda-del': async () => { if (await confirmar('Apagar esta venda? As unidades voltam para o estoque.', 'Apagar')){ const v = S.fin.vendas[id], p = S.fin.produtos[v.produto]; if (p) p.estoque[v.tam] = (Number(p.estoque[v.tam]) || 0) + v.qtd; delete S.fin.vendas[id]; salvar(); render(); } },
     'sair': () => { auth.signOut(); },
     'ir-cadastro': () => { estadoAuth = 'cadastro'; render(); },
     'ir-login': () => { estadoAuth = 'login'; render(); },
@@ -1646,7 +1961,7 @@ document.addEventListener('click', e => {
       abrirModal(`<h2>Restaurar backup</h2><p class="muted small">Cole o texto do backup. Isso substitui os dados atuais deste navegador.</p><textarea id="txtImp" style="min-height:200px"></textarea><div class="actions"><button class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" data-act="importar-ok">Restaurar</button></div>`);
     },
     'importar-ok': () => {
-      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
+      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, fin:o.fin || {}, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
       catch(err){ toast('Texto de backup inválido. Copie o backup completo e tente de novo.'); }
     }
   };
@@ -1669,6 +1984,10 @@ document.addEventListener('change', e => {
   else if (t.id === 'rankPer'){ ui.rankPer = t.value; render(); }
   else if (t.id === 'rankMod'){ ui.rankMod = t.value; render(); }
   else if (t.id === 'gradFiltro'){ ui.gradFiltro = t.value; render(); }
+  else if (t.id === 'finMes'){ ui.finMes = t.value || hoje().slice(0, 7); render(); }
+  else if (t.id === 'finFiltro'){ ui.finFiltro = t.value; render(); }
+  else if (t.id === 'finMod'){ ui.finMod = t.value; render(); }
+  else if (t.id === 'finSt'){ ui.finSt = t.value; render(); }
   else if (['gIdade','gFaixa','gFormato','gDiv'].includes(t.id)){ ui.golpe = {idade:$('#gIdade').value, faixa:$('#gFaixa').value, formato:$('#gFormato').value, divisao:$('#gDiv') ? $('#gDiv').value : 'adulto'}; render(); }
   else if (t.dataset.golpe !== undefined){ comp().golpes[Number(t.dataset.golpe)].proib[Number(t.dataset.col)] = t.checked; salvar(); }
   else if (t.dataset.act === 'papel'){ S.meta.papel = t.value; salvar(); render(); }
