@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#C8102E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SAFE Gestão">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>SAFE Gestão</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F5F3; --surface:#FFFFFF; --ink:#1B1B1E; --muted:#64646A; --line:#E0E0DC;
+  --chip:#EDEDEA; --red:#C8102E; --red-soft:#FBE7EA; --ok:#1E7F45; --ok-soft:#E3F3E9;
+  --warn:#9A5B00; --warn-soft:#FBF0DC; --focus:#1F4FB5;
+  --body:'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --cond:'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131315; --surface:#1C1C1F; --ink:#F1F1EE; --muted:#A3A3A9; --line:#2F2F34;
+    --chip:#29292D; --red:#E3344A; --red-soft:#3A1A20; --ok:#43C27A; --ok-soft:#173222;
+    --warn:#E6A640; --warn-soft:#3A2C14; --focus:#7FA3F5;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131315; --surface:#1C1C1F; --ink:#F1F1EE; --muted:#A3A3A9; --line:#2F2F34;
+  --chip:#29292D; --red:#E3344A; --red-soft:#3A1A20; --ok:#43C27A; --ok-soft:#173222;
+  --warn:#E6A640; --warn-soft:#3A2C14; --focus:#7FA3F5;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:inherit}
+img{max-width:100%}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* Layout */
+.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100%}
+.rail{position:sticky;top:0;height:100vh;height:100dvh;background:var(--surface);border-right:1px solid var(--line);padding:20px 12px;display:flex;flex-direction:column;gap:4px}
+.brand{font-family:var(--cond);font-weight:700;font-size:28px;letter-spacing:.5px;padding:4px 10px 18px;display:flex;align-items:center;gap:8px}
+.brand b{background:var(--red);color:#fff;padding:0 8px;border-radius:3px}
+.brand span{color:var(--muted);font-weight:500;font-size:20px}
+.nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;text-decoration:none;color:var(--muted);font-weight:500}
+.nav a svg{width:22px;height:22px;flex:none}
+.nav a.on{color:var(--ink);background:var(--chip)}
+.nav a.on svg{color:var(--red)}
+.rail .papel{margin-top:auto;font-size:13px;color:var(--muted);padding:10px 12px}
+main{padding:28px 32px 60px;max-width:1100px;width:100%;min-width:0}
+@media (max-width:820px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .rail{position:fixed;left:0;right:0;bottom:0;top:auto;height:auto;flex-direction:row;padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));border-right:0;border-top:1px solid var(--line);z-index:20}
+  .rail .brand,.rail .papel{display:none}
+  .nav{display:flex;width:100%;justify-content:space-around}
+  .nav a{flex-direction:column;gap:2px;font-size:11px;padding:6px 4px;flex:1;text-align:center}
+  .nav a.on{background:none}
+  main{padding:18px 16px 110px}
+}
+
+/* Type */
+h1,h2,h3{font-family:var(--cond);font-weight:700;line-height:1.05;margin:0}
+h1{font-size:40px}
+h2{font-size:26px;margin-bottom:12px}
+h3{font-size:20px;font-weight:600}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+
+/* Controls */
+.btn{border:0;border-radius:8px;padding:10px 16px;font-weight:600;cursor:pointer;background:var(--chip);display:inline-flex;align-items:center;gap:8px;text-decoration:none;min-height:42px}
+.btn.primary{background:var(--red);color:#fff}
+.btn.ghost{background:transparent;border:1px solid var(--line)}
+.btn.small{min-height:34px;padding:6px 12px;font-size:14px}
+.btn.danger{background:transparent;color:var(--red);border:1px solid var(--line)}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-size:14px;font-weight:600;color:var(--muted)}
+input[type=text],input[type=tel],input[type=email],input[type=date],input[type=number],input[type=time],input[type=search],select,textarea{
+  width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-height:42px}
+textarea{min-height:80px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 14px}
+@media (max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
+.checks{display:flex;flex-wrap:wrap;gap:8px}
+.check{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--surface)}
+.check input{width:18px;height:18px;accent-color:var(--red)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+.tabs button{background:none;border:0;padding:10px 14px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--red)}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.filters>*{flex:1;min-width:150px}
+
+/* Panels & rows */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line);text-decoration:none;cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--chip)}
+.row .grow{flex:1;min-width:0}
+.row .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{font-size:14px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.avatar{text-decoration:none;width:42px;height:42px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-family:var(--cond);font-weight:700;font-size:18px;flex:none;overflow:hidden;color:var(--muted)}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.avatar.big{width:84px;height:84px;font-size:34px}
+.tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--chip);white-space:nowrap}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.red{background:var(--red-soft);color:var(--red)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.belt{display:block;flex:none}
+
+/* Home */
+.hero{margin-bottom:22px}
+.hero .dia{font-family:var(--cond);font-size:22px;color:var(--red);font-weight:600}
+.hero h1{font-size:56px}
+@media (max-width:560px){.hero h1{font-size:44px}}
+.agenda{border-left:4px solid var(--red);margin-bottom:26px}
+.aula{display:grid;grid-template-columns:92px 1fr auto;align-items:center;gap:12px;padding:12px 16px;text-decoration:none;border-bottom:1px solid var(--line)}
+.aula:last-child{border-bottom:0}
+.aula .hora{font-family:var(--cond);font-size:30px;font-weight:700}
+.aula .mod{font-weight:600;display:flex;align-items:center;gap:8px}
+.aula:hover{background:var(--chip)}
+.numeros{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px}
+.num{display:block;text-decoration:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.num strong{display:block;font-family:var(--cond);font-size:40px;line-height:1}
+.num span{font-size:14px;color:var(--muted)}
+@media (max-width:560px){.numeros{grid-template-columns:1fr 1fr 1fr;gap:8px}.num{padding:10px}.num strong{font-size:30px}.num span{font-size:12px}}
+
+/* Chamada */
+.chamada .row{padding:10px 14px}
+.chamada .row.on{background:var(--ok-soft)}
+.mark{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;flex:none}
+.row.on .mark{background:var(--ok);border-color:var(--ok);color:#fff}
+.sticky-count{position:sticky;top:0;background:var(--bg);padding:8px 0 12px;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.big-count{font-family:var(--cond);font-size:34px;font-weight:700}
+
+/* Ficha */
+.ficha-top{display:flex;gap:18px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:170px 1fr;gap:6px 14px;font-size:15px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+@media (max-width:560px){.kv{grid-template-columns:1fr}.kv dd{margin-bottom:8px}}
+.timeline{list-style:none;margin:0;padding:0}
+.timeline li{display:flex;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.timeline li:last-child{border-bottom:0}
+.statline{display:flex;gap:26px;flex-wrap:wrap}
+.statline div strong{display:block;font-family:var(--cond);font-size:30px}
+.statline div span{font-size:13px;color:var(--muted)}
+
+/* Ranking */
+.pos{font-family:var(--cond);font-weight:700;font-size:24px;width:36px;text-align:center;flex:none}
+.pos.p1{color:#B8860B}.pos.p2{color:#8A8D91}.pos.p3{color:#A0522D}
+.bar{height:6px;background:var(--chip);border-radius:4px;overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--red)}
+
+/* Tables */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-size:13px;color:var(--muted);font-weight:600}
+td input{min-height:36px;padding:6px 8px}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;z-index:50;padding:calc(20px + env(safe-area-inset-top,0px)) 12px 20px;overflow-y:auto}
+.modal{background:var(--surface);border-radius:12px;width:100%;max-width:680px;padding:22px}
+.modal h2{margin-bottom:16px}
+.modal .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap}
+fieldset{border:0;padding:0;margin:0 0 18px}
+legend{font-family:var(--cond);font-weight:600;font-size:20px;margin-bottom:10px;padding:0}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:8px;z-index:60;font-weight:500;max-width:90vw}
+.notice{background:var(--warn-soft);color:var(--ink);border-radius:8px;padding:12px 14px;font-size:14px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail" aria-label="Menu principal">
+    <div class="brand"><b>SAFE</b><span>gestão</span></div>
+    <div class="nav" id="nav"></div>
+    <div class="papel" id="papel"></div>
+  </nav>
+  <main id="main"></main>
+</div>
+<div id="modal-root"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const FIREBASE_CONFIG = {"apiKey": "AIzaSyCEd7QO5RsFsj0wO1o1aTjxRu6CaTKLc8E", "authDomain": "safe-gestao.firebaseapp.com", "databaseURL": "https://safe-gestao-default-rtdb.firebaseio.com", "projectId": "safe-gestao", "storageBucket": "safe-gestao.firebasestorage.app", "messagingSenderId": "541563339370", "appId": "1:541563339370:web:cb64a16abb6e9f09b30013"};
+const ONLINE = !!FIREBASE_CONFIG;
+/* ============ Utilidades ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+const DIAS_C = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const pad = n => String(n).padStart(2, '0');
+const fmtISO = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const hoje = () => fmtISO(new Date());
+const parseD = s => { if (!s) return null; const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const fmtBR = s => { const d = parseD(s); return d ? `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}` : '—'; };
+const addDias = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return fmtISO(d); };
+const diasEntre = (a, b) => Math.round((parseD(b) - parseD(a)) / 86400000);
+function mesesEntre(a, b){
+  const x = parseD(a), y = parseD(b); if (!x || !y) return 0;
+  let m = (y.getFullYear() - x.getFullYear()) * 12 + (y.getMonth() - x.getMonth());
+  if (y.getDate() < x.getDate()) m--;
+  return Math.max(0, m);
+}
+const idadeIBJJF = nasc => nasc ? new Date().getFullYear() - Number(nasc.slice(0,4)) : null;
+function idadeReal(nasc){
+  if (!nasc) return null; const n = parseD(nasc), h = new Date();
+  let i = h.getFullYear() - n.getFullYear();
+  if (h.getMonth() < n.getMonth() || (h.getMonth() === n.getMonth() && h.getDate() < n.getDate())) i--;
+  return i;
+}
+function tempoTexto(meses){
+  const a = Math.floor(meses / 12), m = meses % 12;
+  const pa = a ? `${a} ano${a > 1 ? 's' : ''}` : '';
+  const pm = m ? `${m} ${m > 1 ? 'meses' : 'mês'}` : '';
+  return [pa, pm].filter(Boolean).join(' e ') || 'menos de 1 mês';
+}
+const iniciais = nome => (nome || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('');
+function waLink(tel, msg){
+  let d = String(tel || '').replace(/\D/g, '');
+  if (!d) return null;
+  if (d.length <= 11) d = '55' + d;
+  return `https://wa.me/${d}?text=${encodeURIComponent(msg || '')}`;
+}
+function toast(msg){
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.setAttribute('role','status');
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+}
+
+/* ============ Faixas IBJJF ============ */
+const SEQ_KIDS = ['branca','cinza-branca','cinza','cinza-preta','amarela-branca','amarela','amarela-preta','laranja-branca','laranja','laranja-preta','verde-branca','verde','verde-preta'];
+const SEQ_ADULTO = ['branca','azul','roxa','marrom','preta','coral','vermelha-branca','vermelha'];
+const COR = {branca:'#F1F1EE', cinza:'#8A8D91', amarela:'#EEC000', laranja:'#EE7A00', verde:'#2E8B3A', azul:'#1F4FB5', roxa:'#6A2C91', marrom:'#6B3E1E', preta:'#0A0A0A', vermelha:'#C8102E'};
+function faixasPadrao(){
+  const kids = [];
+  [['cinza',4],['amarela',7],['laranja',10],['verde',13]].forEach(([c, idade]) => {
+    const N = c[0].toUpperCase() + c.slice(1);
+    kids.push({id:`${c}-branca`, nome:`${N} e branca`, base:COR[c], listra:COR.branca, grupo:'kids', idadeMin:idade, idadeMax:15, tempoMinMeses:0, maxGraus:4});
+    kids.push({id:c, nome:N, base:COR[c], grupo:'kids', idadeMin:idade, idadeMax:15, tempoMinMeses:0, maxGraus:4});
+    kids.push({id:`${c}-preta`, nome:`${N} e preta`, base:COR[c], listra:COR.preta, grupo:'kids', idadeMin:idade, idadeMax:15, tempoMinMeses:0, maxGraus:4});
+  });
+  return [
+    {id:'branca', nome:'Branca', base:COR.branca, grupo:'todos', idadeMin:0, idadeMax:null, tempoMinMeses:0, maxGraus:4},
+    ...kids,
+    {id:'azul', nome:'Azul', base:COR.azul, grupo:'adulto', idadeMin:16, idadeMax:null, tempoMinMeses:24, maxGraus:4},
+    {id:'roxa', nome:'Roxa', base:COR.roxa, grupo:'adulto', idadeMin:16, idadeMax:null, tempoMinMeses:18, maxGraus:4},
+    {id:'marrom', nome:'Marrom', base:COR.marrom, grupo:'adulto', idadeMin:18, idadeMax:null, tempoMinMeses:12, maxGraus:4},
+    {id:'preta', nome:'Preta', base:COR.preta, ponteira:COR.vermelha, grupo:'adulto', idadeMin:19, idadeMax:null, tempoMinMeses:372, maxGraus:6},
+    {id:'coral', nome:'Coral (vermelha e preta)', blocos:[COR.vermelha, COR.preta], sem_ponteira:true, grupo:'adulto', idadeMin:50, idadeMax:null, tempoMinMeses:84, maxGraus:8},
+    {id:'vermelha-branca', nome:'Vermelha e branca', blocos:[COR.vermelha, COR.branca], sem_ponteira:true, grupo:'adulto', idadeMin:57, idadeMax:null, tempoMinMeses:120, maxGraus:9},
+    {id:'vermelha', nome:'Vermelha', base:COR.vermelha, sem_ponteira:true, grupo:'adulto', idadeMin:67, idadeMax:null, tempoMinMeses:0, maxGraus:10}
+  ];
+}
+const faixa = id => S.config.faixas.find(f => f.id === id) || S.config.faixas[0];
+
+function beltSVG(id, graus = 0, w = 120){
+  const f = faixa(id), h = Math.round(w * 0.17), px = Math.round(w * 0.66), pw = Math.round(w * 0.24);
+  let body = '';
+  if (f.blocos){
+    const n = 8, bw = w / n;
+    for (let i = 0; i < n; i++) body += `<rect x="${i*bw}" y="0" width="${bw+0.5}" height="${h}" fill="${f.blocos[i % 2]}"/>`;
+  } else {
+    body = `<rect x="0" y="0" width="${w}" height="${h}" fill="${f.base}"/>`;
+    if (f.listra) body += `<rect x="0" y="${h*0.36}" width="${w}" height="${h*0.28}" fill="${f.listra}"/>`;
+  }
+  let pont = '';
+  if (!f.sem_ponteira){
+    pont = `<rect x="${px}" y="0" width="${pw}" height="${h}" fill="${f.ponteira || '#0A0A0A'}"/>`;
+    const g = Math.min(Number(graus) || 0, 10), sw = Math.max(2, w * 0.022), gap = sw * 1.9;
+    for (let i = 0; i < g; i++) pont += `<rect x="${px + pw - (i+1)*gap}" y="0" width="${sw}" height="${h}" fill="#F7F7F7"/>`;
+  }
+  const label = `Faixa ${f.nome}${graus ? `, ${graus} grau${graus > 1 ? 's' : ''}` : ''}`;
+  return `<svg class="belt" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title>${body}${pont}<rect x=".5" y=".5" width="${w-1}" height="${h-1}" fill="none" stroke="rgba(128,128,128,.45)"/></svg>`;
+}
+
+function proximaFaixa(a){
+  const idade = idadeIBJJF(a.nascimento); if (idade == null) return null;
+  const cur = a.faixa || 'branca';
+  if (idade < 16){
+    const i = SEQ_KIDS.indexOf(cur);
+    return i >= 0 && i < SEQ_KIDS.length - 1 ? SEQ_KIDS[i+1] : null;
+  }
+  if (SEQ_KIDS.includes(cur)) return 'azul';
+  const i = SEQ_ADULTO.indexOf(cur);
+  return i >= 0 && i < SEQ_ADULTO.length - 1 ? SEQ_ADULTO[i+1] : null;
+}
+function statusGraduacao(a){
+  const idade = idadeIBJJF(a.nascimento);
+  if (idade == null) return {tipo:'sem-dados', texto:'Informe a data de nascimento'};
+  const cur = faixa(a.faixa || 'branca');
+  if (cur.grupo === 'kids' && idade >= 16) return {tipo:'migrar', texto:`Faixa infantil não vale a partir dos 16 anos: migrar para azul`, next:'azul'};
+  const nextId = proximaFaixa(a);
+  if (!nextId) return {tipo:'max', texto:'Última faixa da sequência'};
+  const nf = faixa(nextId);
+  if (S.config.exigirGraus !== false && (a.graus || 0) < cur.maxGraus){
+    return {tipo:'graus', texto:`Tem ${a.graus || 0} de ${cur.maxGraus} graus antes de ${nf.nome}`, next:nextId};
+  }
+  if (idade < nf.idadeMin){
+    const ano = Number(a.nascimento.slice(0,4)) + nf.idadeMin;
+    return {tipo:'idade', texto:`${nf.nome} a partir de ${ano} (idade mínima ${nf.idadeMin})`, next:nextId};
+  }
+  if (idade >= 18 && cur.tempoMinMeses > 0){
+    const m = mesesEntre(a.dataFaixa || a.dataMatricula, hoje());
+    if (m < cur.tempoMinMeses) return {tipo:'tempo', texto:`Faltam ${tempoTexto(cur.tempoMinMeses - m)} de tempo mínimo`, next:nextId};
+  }
+  return {tipo:'apto', texto:`Apto para ${nf.nome} pelos critérios IBJJF`, next:nextId};
+}
+function tagStatus(st){
+  const cls = {apto:'ok', migrar:'warn', idade:'', tempo:'', graus:'', max:'', 'sem-dados':'warn'}[st.tipo];
+  const txt = {apto:'Apto a trocar de faixa', migrar:'Migrar faixa', idade:'Aguardando idade', tempo:'Aguardando tempo', graus:'Em graus', max:'Topo', 'sem-dados':'Sem nascimento'}[st.tipo];
+  return `<span class="tag ${cls}">${txt}</span>`;
+}
+
+/* ============ Dados ============ */
+const KEY = 'safe_gestao_v1';
+function configPadrao(){
+  const t = (mod, dia, hora) => ({id:uid(), mod, dia, hora});
+  return {
+    academia:'Academia SAFE',
+    modalidades:[
+      {id:'jj', nome:'Jiu-Jitsu adulto', cor:'#C8102E', faixa:true},
+      {id:'kids', nome:'Jiu-Jitsu kids', cor:'#E8A317', faixa:true},
+      {id:'nogi', nome:'NoGi', cor:'#3A4A63', faixa:true},
+      {id:'mt', nome:'Muay Thai', cor:'#7A3FB0', faixa:false}
+    ],
+    turmas:[
+      t('mt',1,'18:00'), t('kids',1,'19:15'), t('jj',1,'20:00'), t('nogi',1,'21:00'),
+      t('jj',2,'21:00'),
+      t('mt',3,'18:00'), t('kids',3,'19:15'), t('jj',3,'20:00'), t('nogi',3,'21:00'),
+      t('jj',4,'21:00'),
+      t('jj',5,'18:00'), t('nogi',5,'19:00')
+    ],
+    planos:[
+      {id:'p1', nome:'Jiu-Jitsu, NoGi e Kids (mensal)', valor:280, meses:1, mods:['jj','nogi','kids']},
+      {id:'p2', nome:'Jiu-Jitsu, NoGi e Kids (semestral)', valor:230, meses:6, mods:['jj','nogi','kids']},
+      {id:'p3', nome:'Jiu-Jitsu, NoGi e Kids (anual)', valor:200, meses:12, mods:['jj','nogi','kids']},
+      {id:'p4', nome:'Muay Thai (mensal)', valor:180, meses:1, mods:['mt']},
+      {id:'p5', nome:'Jiu-Jitsu + Muay Thai (mensal)', valor:280, meses:1, mods:['jj','nogi','mt']}
+    ],
+    custos:{condominioPct:10, fixos:[{id:'c1', nome:'Luz', valor:50}]},
+    faixas:faixasPadrao()
+  };
+}
+let S;
+const arr = v => Array.isArray(v) ? v.filter(x => x != null) : v ? Object.values(v).filter(x => x != null) : [];
+function normalizar(){
+  S.alunos ||= {}; S.presencas ||= {}; S.campeonatos ||= {}; S.meta ||= {papel:'admin'};
+  const d = configPadrao();
+  S.config ||= d;
+  ['modalidades','turmas','planos','faixas'].forEach(k => { S.config[k] = S.config[k] ? arr(S.config[k]) : d[k]; });
+  S.config.custos ||= d.custos; S.config.custos.fixos = arr(S.config.custos.fixos);
+  if (S.config.custos.condominioPct == null) S.config.custos.condominioPct = 10;
+  S.config.planos.forEach(p => { p.mods = arr(p.mods); });
+  S.config.modalidades.forEach(m => { if (m.faixa === undefined) m.faixa = m.id !== 'mt'; });
+  S.config.competicao ||= compPadrao();
+  const c = S.config.competicao, cd = compPadrao();
+  ['divisoes','golpes','pontos','tempos','notas','docs'].forEach(k => { c[k] = c[k] ? arr(c[k]) : cd[k]; });
+  c.golpes.forEach(g => { const pr = g.proib || []; g.proib = [0,1,2,3,4,5].map(j => !!pr[j]); });
+  if (c.kimonoKg == null) c.kimonoKg = cd.kimonoKg;
+  c.pesos ||= {}; Object.keys(cd.pesos).forEach(k => { c.pesos[k] = c.pesos[k] ? arr(c.pesos[k]) : cd.pesos[k]; });
+  c.kids ||= {}; Object.keys(cd.kids).forEach(i => { const v = c.kids[i] || cd.kids[i]; c.kids[i] = [0,1,2,3,4,5,6,7,8].map(j => v[j] ?? null); });
+  S.config.formsPlanilha ??= 'https://docs.google.com/spreadsheets/d/1d_AgrZCoJb6aPqm63c6Ukwm6Z9r9lmtR_Wemy78BGSE/edit';
+  Object.entries(S.alunos).forEach(([id, a]) => { a.id = id; a.mods = arr(a.mods); a.historico = arr(a.historico); a.pesos = arr(a.pesos); });
+  Object.values(S.campeonatos).forEach(x => { x.inscritos = arr(x.inscritos); });
+  Object.values(S.presencas).forEach(x => { x.alunos ||= {}; });
+}
+function carregar(){
+  if (ONLINE){
+    S = {config:configPadrao(), alunos:{}, presencas:{}, campeonatos:{}, meta:{papel:'prof', tema:localStorage.getItem('safe_tema') || 'auto'}};
+    normalizar(); return;
+  }
+  try { S = JSON.parse(localStorage.getItem(KEY)); } catch(e){ S = null; }
+  if (!S || !S.config){ S = {config:configPadrao(), alunos:{}, presencas:{}, meta:{criado:hoje(), papel:'admin'}}; }
+  normalizar();
+}
+function salvar(){
+  _idx = null;
+  if (ONLINE) return salvarOnline();
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch(e){ toast('Não foi possível salvar neste navegador. Exporte um backup em Configurações.'); }
+}
+const isAdmin = () => S.meta.papel === 'admin';
+const mod = id => S.config.modalidades.find(m => m.id === id);
+const turma = id => S.config.turmas.find(t => t.id === id);
+const alunosAtivos = () => Object.values(S.alunos).filter(a => a.status === 'ativo');
+const usaFaixa = a => (a.mods || []).some(id => mod(id)?.faixa);
+const ativosFaixa = () => alunosAtivos().filter(usaFaixa);
+
+// Índice de presenças: alunoId -> datas ordenadas
+let _idx = null;
+function idxPres(){
+  if (_idx) return _idx;
+  _idx = {};
+  Object.values(S.presencas).forEach(p => Object.keys(p.alunos || {}).forEach(id => (_idx[id] ||= []).push(p.data)));
+  Object.values(_idx).forEach(arr => arr.sort());
+  return _idx;
+}
+const presDe = id => idxPres()[id] || [];
+const ultimaPres = id => { const a = presDe(id); return a.length ? a[a.length-1] : null; };
+const presEntre = (id, ini, fim) => presDe(id).filter(d => d >= ini && d <= fim).length;
+function diasSumido(a){
+  const u = ultimaPres(a.id) || a.dataMatricula;
+  return u ? diasEntre(u, hoje()) : null;
+}
+
+/* ============ Navegação ============ */
+const ICON = {
+  inicio:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  alunos:'<circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.6.8 2.7 2.5 3 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  presenca:'<rect x="4" y="4" width="16" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 2.5v3M16 2.5v3M8.5 13l2.5 2.5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  graduacoes:'<path d="M2 10h20v4H2z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 10v4M17 10v4M10 14l-2 7M12 14l2 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  competicao:'<circle cx="12" cy="15" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 10.5L5 3h4l3 6 3-6h4l-3.5 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  mais:'<circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+};
+const NAV = [['inicio','Início'],['alunos','Alunos'],['presenca','Presença'],['graduacoes','Graduação'],['competicao','Competição'],['mais','Ajustes']];
+const ui = {busca:'', fMod:'', fStatus:'ativo', gradFiltro:'todos', gradTab:'alunos', presTab:'chamada', presData:hoje(), rankPer:'mes', rankMod:'', maisTab:'grade', chamadaBusca:'', compTab:'atletas', compEdit:false, sim:{sexo:'Masculino', ano:1995, peso:75}, golpe:{idade:25, faixa:'branca', formato:'gi', divisao:'adulto'}};
+
+function rota(){ const h = location.hash.replace(/^#\/?/, '') || 'inicio'; return h.split('/'); }
+function render(){
+  pendRender = false;
+  if (ONLINE && estadoAuth !== 'ok'){ $('.rail').style.display = 'none'; $('#main').innerHTML = telaAuth(); return; }
+  $('.rail').style.display = '';
+  const [v, ...args] = rota();
+  const sec = {aluno:'alunos', chamada:'presenca'}[v] || v;
+  $('#nav').innerHTML = NAV.map(([id, nome]) => `<a href="#/${id}" class="${sec === id ? 'on' : ''}" ${sec === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg>${nome}</a>`).join('');
+  $('#papel').textContent = (ONLINE && S.meta.nome ? S.meta.nome + ', ' : '') + (isAdmin() ? 'administrador' : 'professor');
+  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, competicao:viewCompeticao, mais:viewMais};
+  $('#main').innerHTML = (views[v] || viewInicio)(...args);
+  const after = {alunos:listaAlunos, chamada:() => listaChamada(args[0], args[1]), competicao:simAtualiza}[v];
+  if (after) after();
+}
+window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+
+/* ============ Início ============ */
+function viewInicio(){
+  const d = new Date(), h = hoje();
+  const aulas = S.config.turmas.filter(t => t.dia === d.getDay()).sort((a, b) => a.hora.localeCompare(b.hora));
+  const ativos = alunosAtivos();
+  const aptos = ativosFaixa().filter(a => ['apto','migrar'].includes(statusGraduacao(a).tipo)).length;
+  const sumidos = ativos.filter(a => (diasSumido(a) ?? 0) >= 14).length;
+  const niver = ativos.filter(a => a.nascimento && Number(a.nascimento.slice(5,7)) === d.getMonth()+1)
+    .sort((a, b) => a.nascimento.slice(8).localeCompare(b.nascimento.slice(8)));
+  const vazio = Object.keys(S.alunos).length === 0;
+  return `
+  <section class="hero"><div class="dia">${DIAS[d.getDay()]}</div><h1>${d.getDate()} de ${MESES[d.getMonth()]}</h1></section>
+  ${ONLINE && isAdmin() && pendentesEquipe() ? `<div class="notice">${pendentesEquipe()} pessoa(s) criaram conta e aguardam sua aprovação. <a href="#/mais" data-act="ver-equipe">Aprovar em Ajustes</a></div>` : ''}
+  ${vazio ? `<div class="notice">Nenhum aluno cadastrado ainda. Cadastre o primeiro em <a href="#/alunos">Alunos</a> ou carregue alunos de exemplo em <a href="#/mais">Ajustes</a> para explorar o app.</div>` : ''}
+  <h2>Aulas de hoje</h2>
+  <div class="list agenda">
+    ${aulas.length ? aulas.map(t => {
+      const m = mod(t.mod) || {nome:'?', cor:'#999'}; const p = S.presencas[`${h}_${t.id}`];
+      const n = p ? Object.keys(p.alunos || {}).length : 0;
+      return `<a class="aula" href="#/chamada/${h}/${t.id}"><span class="hora">${t.hora}</span><span class="mod"><i class="dot" style="background:${m.cor}"></i>${esc(m.nome)}</span><span class="${n ? 'tag ok' : 'btn small primary'}">${n ? `${n} presente${n > 1 ? 's' : ''}` : 'Fazer chamada'}</span></a>`;
+    }).join('') : `<div class="empty">Sem aulas na grade de hoje.</div>`}
+  </div>
+  <div class="numeros">
+    <a class="num" href="#/alunos"><strong>${ativos.length}</strong><span>alunos ativos</span></a>
+    <a class="num" href="#/graduacoes" data-act="grad-aptos"><strong>${aptos}</strong><span>aptos a trocar de faixa</span></a>
+    <a class="num" href="#/presenca" data-act="ver-sumidos"><strong>${sumidos}</strong><span>sem treinar há 14+ dias</span></a>
+  </div>
+  <h2>Por modalidade</h2>
+  <div class="list" style="margin-bottom:26px">
+    ${S.config.modalidades.map(m => `<div class="row" style="cursor:default"><i class="dot" style="background:${m.cor}"></i><span class="grow name">${esc(m.nome)}</span><strong>${ativos.filter(a => (a.mods || []).includes(m.id)).length}</strong></div>`).join('')}
+  </div>
+  <h2>Aniversariantes de ${MESES[d.getMonth()]}</h2>
+  <div class="list">
+    ${niver.length ? niver.map(a => {
+      const link = waLink(a.telefone || a.telResp, `Parabéns, ${a.nome.split(' ')[0]}! A família SAFE deseja um ótimo aniversário. Oss!`);
+      return `<div class="row"><a href="#/aluno/${a.id}" class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</a><a class="grow" href="#/aluno/${a.id}" style="text-decoration:none"><div class="name">${esc(a.nome)}</div><div class="meta">Dia ${a.nascimento.slice(8)}, faz ${idadeReal(a.nascimento) + (Number(a.nascimento.slice(8)) >= d.getDate() ? 1 : 0)} anos</div></a>${link ? `<a class="btn small ghost" href="${link}" target="_blank" rel="noopener">Parabenizar</a>` : ''}</div>`;
+    }).join('') : `<div class="empty">Nenhum aniversariante ativo neste mês.</div>`}
+  </div>`;
+}
+
+/* ============ Alunos ============ */
+function viewAlunos(){
+  return `
+  <div class="head"><h1>Alunos</h1><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="imp-forms">Importar do Google Forms</button><button class="btn primary" data-act="novo-aluno">Novo aluno</button></span></div>
+  ${(() => { const n = Object.values(S.alunos).filter(a => a.status === 'novo').length; return n ? `<div class="notice">${n} novo${n > 1 ? 's' : ''} cadastro${n > 1 ? 's' : ''} vindo${n > 1 ? 's' : ''} do formulário aguardando revisão. <button class="btn small ghost" data-act="ver-novos">Revisar agora</button> Abra cada ficha, confira os dados, escolha modalidade e plano e mude a situação para Ativo.</div>` : ''; })()}
+  <div class="filters">
+    <input type="search" id="busca" placeholder="Buscar por nome" value="${esc(ui.busca)}" aria-label="Buscar aluno">
+    <select id="fMod" aria-label="Filtrar por modalidade"><option value="">Todas as modalidades</option>${S.config.modalidades.map(m => `<option value="${m.id}" ${ui.fMod === m.id ? 'selected' : ''}>${esc(m.nome)}</option>`).join('')}</select>
+    <select id="fStatus" aria-label="Filtrar por situação">${[['ativo','Ativos'],['novo','Novos cadastros'],['trancado','Trancados'],['inativo','Inativos'],['','Todos']].map(([v, t]) => `<option value="${v}" ${ui.fStatus === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+  </div>
+  <p class="muted small" id="contagem"></p>
+  <div class="list" id="lista"></div>`;
+}
+function listaAlunos(){
+  const q = ui.busca.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const arr = Object.values(S.alunos).filter(a =>
+    (!ui.fStatus || a.status === ui.fStatus) &&
+    (!ui.fMod || (a.mods || []).includes(ui.fMod)) &&
+    (!q || a.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(q))
+  ).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  $('#contagem').textContent = `${arr.length} aluno${arr.length === 1 ? '' : 's'}`;
+  $('#lista').innerHTML = arr.length ? arr.map(a => `
+    <a class="row" href="#/aluno/${a.id}">
+      <span class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
+      <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>
+        <span class="meta">${a.nascimento ? `${idadeReal(a.nascimento)} anos` : ''}${(a.mods || []).map(id => { const m = mod(id); return m ? `<span class="tag"><i class="dot" style="background:${m.cor};width:7px;height:7px"></i> ${esc(m.nome)}</span>` : ''; }).join('')}${a.status !== 'ativo' ? `<span class="tag warn">${a.status === 'novo' ? 'novo cadastro' : a.status}</span>` : ''}${a.atleta ? '<span class="tag red">atleta</span>' : ''}</span></span>
+      ${usaFaixa(a) ? beltSVG(a.faixa, a.graus, 84) : ''}
+    </a>`).join('') : `<div class="empty">${Object.keys(S.alunos).length ? 'Nenhum aluno com esses filtros.' : 'Nenhum aluno cadastrado. Toque em "Novo aluno" para começar.'}</div>`;
+}
+
+function viewAluno(id){
+  const a = S.alunos[id];
+  if (!a) return `<div class="empty">Aluno não encontrado. <a href="#/alunos">Voltar para a lista</a></div>`;
+  const st = statusGraduacao(a), f = faixa(a.faixa);
+  const pres = presDe(id), h = hoje();
+  const tel = a.telefone || a.telResp;
+  const menor = a.nascimento && idadeReal(a.nascimento) < 18;
+  const plano = S.config.planos.find(p => p.id === a.plano);
+  const hist = [...(a.historico || [])].sort((x, y) => y.data.localeCompare(x.data));
+  const naFaixa = presEntre(id, a.dataFaixa || '0000', h);
+  const kv = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
+  return `
+  <p><a href="#/alunos" class="muted small">Voltar para alunos</a></p>
+  <div class="ficha-top">
+    <span class="avatar big" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
+    <div style="flex:1;min-width:220px">
+      <h1 style="font-size:36px">${esc(a.nome)}</h1>
+      ${usaFaixa(a) ? `<div class="meta" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">${beltSVG(a.faixa, a.graus, 150)} <span class="muted">${esc(f.nome)}${a.graus ? `, ${a.graus} grau${a.graus > 1 ? 's' : ''}` : ''}</span></div>` : ''}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${usaFaixa(a) ? `<button class="btn primary" data-act="graduar" data-id="${id}">Registrar graduação</button>` : ''}
+      <button class="btn ghost" data-act="editar-aluno" data-id="${id}">Editar</button>
+      ${tel ? `<a class="btn ghost" href="${waLink(tel, `Olá, ${a.nome.split(' ')[0]}!`)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+    </div>
+  </div>
+  <div class="panel">
+    <div class="statline">
+      <div><strong>${pres.length}</strong><span>treinos no total</span></div>
+      <div><strong>${presEntre(id, addDias(h, -30), h)}</strong><span>nos últimos 30 dias</span></div>
+      ${usaFaixa(a) ? `<div><strong>${naFaixa}</strong><span>desde a última faixa</span></div>` : ''}
+      <div><strong>${ultimaPres(id) ? fmtBR(ultimaPres(id)).slice(0,5) : '—'}</strong><span>último treino</span></div>
+    </div>
+  </div>
+  ${usaFaixa(a) ? `<div class="panel">
+    <h3 style="margin-bottom:8px">Graduação</h3>
+    <p style="margin:0 0 6px">${tagStatus(st)} <span class="muted small">${esc(st.texto)}</span></p>
+    <p class="muted small" style="margin:0">Na faixa atual desde ${fmtBR(a.dataFaixa)} (${tempoTexto(mesesEntre(a.dataFaixa || a.dataMatricula, h))}). Idade IBJJF em ${new Date().getFullYear()}: ${idadeIBJJF(a.nascimento) ?? '—'} anos.</p>
+    <h3 style="margin:18px 0 6px">Histórico</h3>
+    ${hist.length ? `<ul class="timeline">${hist.map(x => `<li>${beltSVG(x.faixa, x.graus, 96)}<div class="grow" style="flex:1"><strong>${x.tipo === 'grau' ? `${x.graus}º grau` : `Faixa ${esc(faixa(x.faixa).nome)}`}</strong><div class="muted small">${fmtBR(x.data)}${x.prof ? `, por ${esc(x.prof)}` : ''}${x.obs ? `. ${esc(x.obs)}` : ''}</div></div><button class="btn small danger" data-act="del-hist" data-id="${id}" data-hid="${x.id}" aria-label="Apagar registro">Apagar</button></li>`).join('')}</ul>` : `<p class="muted small">Nenhuma graduação registrada ainda.</p>`}
+  </div>` : ''}
+  <div class="panel">
+    <h3 style="margin-bottom:12px">Dados</h3>
+    <dl class="kv">
+      ${kv('Nascimento', a.nascimento ? `${fmtBR(a.nascimento)} (${idadeReal(a.nascimento)} anos)` : '')}
+      ${kv('Sexo', esc(a.sexo))}
+      ${kv('Modalidades', (a.mods || []).map(m => esc(mod(m)?.nome)).join(', '))}
+      ${kv('Situação', esc(a.status === 'novo' ? 'Novo cadastro, aguardando revisão' : a.status))}
+      ${kv('Equipe de competição', a.atleta ? 'Sim' : '')}
+      ${kv('Matrícula', fmtBR(a.dataMatricula))}
+      ${kv('Telefone', esc(a.telefone))}
+      ${kv('E-mail', esc(a.email))}
+      ${kv('CPF', esc(a.cpf))}
+      ${kv('Endereço', esc(a.endereco))}
+      ${menor || a.responsavel ? kv('Responsável', esc([a.responsavel, a.telResp].filter(Boolean).join(', '))) : ''}
+      ${kv('Emergência', esc(a.emergencia))}
+      ${kv('Saúde', esc(a.saude))}
+      ${kv('Peso', a.peso ? `${esc(a.peso)} kg` : '')}
+      ${kv('Indicado por', esc(a.indicadoPor))}
+      ${kv('Uso de imagem', a.consImagem ? 'Autorizado' : 'Não autorizado')}
+      ${kv('Reconhecimento facial', a.consBio ? 'Autorizado' : 'Não autorizado')}
+      ${kv('Observações', esc(a.obs))}
+      ${isAdmin() ? kv('Plano', plano ? `${esc(plano.nome)}, R$ ${plano.valor}/mês` : 'Não definido') + kv('Vencimento', a.vencimento ? `Dia ${a.vencimento}` : '') + kv('Bolsa', a.bolsa && a.bolsa !== 'nenhuma' ? (a.bolsa === 'integral' ? 'Integral' : `Parcial, ${a.bolsaPct || 0}%`) : '') + kv('Desconto', a.desconto ? `R$ ${a.desconto} (${esc(a.descontoMotivo || 'sem motivo')})` : '') : ''}
+    </dl>
+  </div>
+  ${isAdmin() ? `<button class="btn danger" data-act="excluir-aluno" data-id="${id}">Excluir aluno</button>` : ''}`;
+}
+
+function formAluno(id){
+  const a = id ? S.alunos[id] : {status:'ativo', dataMatricula:hoje(), faixa:'branca', graus:0, dataFaixa:hoje(), mods:[], bolsa:'nenhuma'};
+  const opt = (v, t, sel) => `<option value="${v}" ${sel ? 'selected' : ''}>${t}</option>`;
+  abrirModal(`
+  <form id="fAluno">
+    <h2>${id ? 'Editar aluno' : 'Novo aluno'}</h2>
+    <fieldset><legend>Identificação</legend>
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">
+        <span class="avatar big" id="prevFoto">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
+        <label class="btn ghost small">Escolher foto<input type="file" accept="image/*" id="inFoto" hidden></label>
+        <input type="hidden" name="foto" value="${esc(a.foto || '')}">
+      </div>
+      <div class="field"><label for="nome">Nome completo</label><input type="text" id="nome" name="nome" required value="${esc(a.nome)}"></div>
+      <div class="grid3">
+        <div class="field"><label for="nasc">Nascimento</label><input type="date" id="nasc" name="nascimento" value="${esc(a.nascimento)}"></div>
+        <div class="field"><label for="sexo">Sexo</label><select id="sexo" name="sexo">${opt('', 'Selecione')}${opt('Masculino','Masculino',a.sexo === 'Masculino')}${opt('Feminino','Feminino',a.sexo === 'Feminino')}</select></div>
+        <div class="field"><label for="peso">Peso (kg)</label><input type="number" step="0.1" id="peso" name="peso" value="${esc(a.peso)}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label for="cpf">CPF</label><input type="text" id="cpf" name="cpf" inputmode="numeric" value="${esc(a.cpf)}"></div>
+        <div class="field"><label for="status">Situação</label><select id="status" name="status">${opt('novo','Novo cadastro (revisar)',a.status === 'novo')}${opt('ativo','Ativo',a.status === 'ativo')}${opt('trancado','Trancado',a.status === 'trancado')}${opt('inativo','Inativo',a.status === 'inativo')}</select></div>
+      </div>
+    </fieldset>
+    <fieldset><legend>Contato</legend>
+      <div class="grid2">
+        <div class="field"><label for="tel">Telefone (WhatsApp)</label><input type="tel" id="tel" name="telefone" placeholder="21 99999-9999" value="${esc(a.telefone)}"></div>
+        <div class="field"><label for="email">E-mail</label><input type="email" id="email" name="email" value="${esc(a.email)}"></div>
+      </div>
+      <div class="field"><label for="end">Endereço</label><input type="text" id="end" name="endereco" value="${esc(a.endereco)}"></div>
+      <div class="grid2">
+        <div class="field"><label for="resp">Responsável (menores)</label><input type="text" id="resp" name="responsavel" value="${esc(a.responsavel)}"></div>
+        <div class="field"><label for="telResp">Telefone do responsável</label><input type="tel" id="telResp" name="telResp" value="${esc(a.telResp)}"></div>
+      </div>
+      <div class="field"><label for="emerg">Contato de emergência</label><input type="text" id="emerg" name="emergencia" placeholder="Nome e telefone" value="${esc(a.emergencia)}"></div>
+      <div class="field"><label for="saude">Saúde e restrições</label><textarea id="saude" name="saude" placeholder="Lesões, alergias, medicamentos, cirurgias">${esc(a.saude)}</textarea></div>
+    </fieldset>
+    <fieldset><legend>Treino</legend>
+      <div class="field"><label>Modalidades</label><div class="checks">${S.config.modalidades.map(m => `<label class="check"><input type="checkbox" name="mods" value="${m.id}" ${(a.mods || []).includes(m.id) ? 'checked' : ''}><i class="dot" style="background:${m.cor}"></i>${esc(m.nome)}</label>`).join('')}</div></div>
+      <div class="grid2">
+        <div class="field"><label for="dm">Data de matrícula</label><input type="date" id="dm" name="dataMatricula" value="${esc(a.dataMatricula)}"></div>
+        <div class="field"><label for="ind">Indicado por</label><input type="text" id="ind" name="indicadoPor" list="dlAlunos" value="${esc(a.indicadoPor)}"><datalist id="dlAlunos">${Object.values(S.alunos).map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist></div>
+      </div>
+      ${id ? '' : `<div class="grid3">
+        <div class="field"><label for="fx">Faixa atual</label><select id="fx" name="faixa">${S.config.faixas.map(f => opt(f.id, esc(f.nome), a.faixa === f.id)).join('')}</select></div>
+        <div class="field"><label for="gr">Graus</label><input type="number" min="0" max="10" id="gr" name="graus" value="${a.graus || 0}"></div>
+        <div class="field"><label for="df">Desde</label><input type="date" id="df" name="dataFaixa" value="${esc(a.dataFaixa)}"></div>
+      </div><p class="muted small" style="margin-top:-4px">Depois do cadastro, as mudanças de faixa e grau são feitas em "Registrar graduação", para manter o histórico.</p>`}
+    </fieldset>
+    <label class="check" style="margin:-6px 0 18px"><input type="checkbox" name="atleta" ${a.atleta ? 'checked' : ''}>Atleta da equipe de competição</label>
+    ${isAdmin() ? `<fieldset><legend>Plano e valores</legend>
+      <div class="grid2">
+        <div class="field"><label for="plano">Plano</label><select id="plano" name="plano">${opt('', 'Sem plano definido')}${S.config.planos.map(p => opt(p.id, `${esc(p.nome)}, R$ ${p.valor}`, a.plano === p.id)).join('')}</select></div>
+        <div class="field"><label for="venc">Dia de vencimento</label><input type="number" min="1" max="31" id="venc" name="vencimento" value="${esc(a.vencimento || 10)}"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label for="bolsa">Bolsa</label><select id="bolsa" name="bolsa">${opt('nenhuma','Nenhuma',a.bolsa === 'nenhuma')}${opt('parcial','Parcial',a.bolsa === 'parcial')}${opt('integral','Integral',a.bolsa === 'integral')}</select></div>
+        <div class="field"><label for="bpct">% da bolsa parcial</label><input type="number" min="0" max="100" id="bpct" name="bolsaPct" value="${esc(a.bolsaPct)}"></div>
+        <div class="field"><label for="desc">Desconto (R$/mês)</label><input type="number" min="0" id="desc" name="desconto" value="${esc(a.desconto)}"></div>
+      </div>
+      <div class="field"><label for="dmot">Motivo do desconto</label><select id="dmot" name="descontoMotivo">${['','Indicação','Irmãos/família','Atleta da equipe','Outro'].map(v => opt(v, v || 'Selecione', a.descontoMotivo === v)).join('')}</select></div>
+    </fieldset>` : ''}
+    <fieldset><legend>Autorizações (LGPD)</legend>
+      <label class="check" style="margin-bottom:8px"><input type="checkbox" name="consImagem" ${a.consImagem ? 'checked' : ''}>Autoriza uso de imagem em fotos e redes sociais</label>
+      <label class="check"><input type="checkbox" name="consBio" ${a.consBio ? 'checked' : ''}>Autoriza reconhecimento facial para presença</label>
+    </fieldset>
+    <div class="field"><label for="obs">Observações</label><textarea id="obs" name="obs">${esc(a.obs)}</textarea></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">${id ? 'Salvar alterações' : 'Cadastrar aluno'}</button></div>
+  </form>`);
+  $('#inFoto').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    const img = new Image(), rd = new FileReader();
+    rd.onload = () => { img.src = rd.result; };
+    img.onload = () => {
+      const s = 240, c = document.createElement('canvas'); c.width = c.height = s;
+      const r = Math.min(img.width, img.height), ctx = c.getContext('2d');
+      ctx.drawImage(img, (img.width - r) / 2, (img.height - r) / 2, r, r, 0, 0, s, s);
+      const data = c.toDataURL('image/jpeg', 0.8);
+      document.querySelector('[name=foto]').value = data;
+      $('#prevFoto').innerHTML = `<img src="${data}" alt="">`;
+    };
+    rd.readAsDataURL(file);
+  });
+  $('#fAluno').addEventListener('submit', e => {
+    e.preventDefault();
+    const fd = new FormData(e.target), o = {};
+    for (const [k, v] of fd.entries()) if (k !== 'mods') o[k] = typeof v === 'string' ? v.trim() : v;
+    o.mods = fd.getAll('mods');
+    o.consImagem = fd.has('consImagem'); o.consBio = fd.has('consBio'); o.atleta = fd.has('atleta');
+    if (!o.nome) return toast('Informe o nome do aluno.');
+    if (id){
+      if (!S.alunos[id]) return toast('Este aluno foi excluído por outro professor.');
+      Object.assign(S.alunos[id], o);
+    } else {
+      const nid = uid(); o.graus = Number(o.graus) || 0;
+      S.alunos[nid] = {...o, id:nid, historico:[{id:uid(), tipo:'faixa', faixa:o.faixa, graus:o.graus, data:o.dataFaixa || hoje(), obs:'Faixa no cadastro'}]};
+      location.hash = `#/aluno/${nid}`;
+    }
+    salvar(); fecharModal(); render(); toast(id ? 'Alterações salvas' : 'Aluno cadastrado');
+  });
+}
+
+function formGraduacao(id){
+  const a = S.alunos[id], st = statusGraduacao(a);
+  const maxG = faixa(a.faixa).maxGraus;
+  abrirModal(`
+  <form id="fGrad">
+    <h2>Registrar graduação</h2>
+    <p style="display:flex;gap:10px;align-items:center">${beltSVG(a.faixa, a.graus, 120)} <span><strong>${esc(a.nome)}</strong><br><span class="muted small">${esc(st.texto)}</span></span></p>
+    ${st.tipo !== 'apto' && st.tipo !== 'migrar' ? `<div class="notice">Pelos critérios IBJJF cadastrados, o aluno ainda não cumpre os requisitos para a próxima faixa. Você pode registrar mesmo assim (graus, por exemplo, não têm tempo mínimo).</div>` : ''}
+    <div class="field"><label>Tipo</label><div class="checks">
+      <label class="check"><input type="radio" name="tipo" value="grau" ${a.graus < maxG ? 'checked' : ''}>Novo grau</label>
+      <label class="check"><input type="radio" name="tipo" value="faixa" ${a.graus >= maxG ? 'checked' : ''}>Nova faixa</label>
+    </div></div>
+    <div class="grid2">
+      <div class="field" id="boxFaixa"><label for="gf">Nova faixa</label><select id="gf" name="faixa">${S.config.faixas.map(f => `<option value="${f.id}" ${f.id === (st.next || a.faixa) ? 'selected' : ''}>${esc(f.nome)}</option>`).join('')}</select></div>
+      <div class="field"><label for="gg">Graus após a graduação</label><input type="number" min="0" max="10" id="gg" name="graus" value="${Math.min((a.graus || 0) + 1, maxG)}"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="gd">Data</label><input type="date" id="gd" name="data" value="${hoje()}" required></div>
+      <div class="field"><label for="gp">Professor</label><input type="text" id="gp" name="prof" value="${esc(S.meta.ultimoProf || '')}"></div>
+    </div>
+    <div class="field"><label for="go">Observação</label><input type="text" id="go" name="obs" placeholder="Ex.: graduação de fim de ano"></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Registrar</button></div>
+  </form>`);
+  const sync = () => {
+    const tipo = document.querySelector('[name=tipo]:checked').value;
+    $('#boxFaixa').style.display = tipo === 'faixa' ? '' : 'none';
+    $('#gg').value = tipo === 'faixa' ? 0 : Math.min((a.graus || 0) + 1, maxG);
+  };
+  document.querySelectorAll('[name=tipo]').forEach(r => r.addEventListener('change', sync)); sync();
+  $('#fGrad').addEventListener('submit', e => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target));
+    const a = S.alunos[id]; if (!a) return toast('Aluno não encontrado.');
+    const reg = {id:uid(), tipo:fd.tipo, data:fd.data, prof:fd.prof, obs:fd.obs, graus:Number(fd.graus) || 0, faixa: fd.tipo === 'faixa' ? fd.faixa : a.faixa};
+    a.historico ||= []; a.historico.push(reg);
+    a.faixa = reg.faixa; a.graus = reg.graus;
+    if (fd.tipo === 'faixa') a.dataFaixa = reg.data;
+    a.dataGrau = reg.data; S.meta.ultimoProf = fd.prof;
+    salvar(); fecharModal(); render(); toast('Graduação registrada');
+  });
+}
+
+/* ============ Presença ============ */
+function viewPresenca(){
+  const tabs = [['chamada','Chamada'],['ranking','Ranking'],['sumidos','Alunos sumidos']];
+  let corpo = '';
+  if (ui.presTab === 'chamada'){
+    const dow = parseD(ui.presData).getDay();
+    const aulas = S.config.turmas.filter(t => t.dia === dow).sort((a, b) => a.hora.localeCompare(b.hora));
+    corpo = `<div class="filters"><div class="field" style="max-width:240px"><label for="presData">Data da aula</label><input type="date" id="presData" value="${ui.presData}"></div></div>
+    <h2>${DIAS[dow]}, ${fmtBR(ui.presData)}</h2>
+    <div class="list agenda">${aulas.length ? aulas.map(t => {
+      const m = mod(t.mod) || {nome:'?', cor:'#999'}; const p = S.presencas[`${ui.presData}_${t.id}`];
+      const n = p ? Object.keys(p.alunos || {}).length : 0;
+      return `<a class="aula" href="#/chamada/${ui.presData}/${t.id}"><span class="hora">${t.hora}</span><span class="mod"><i class="dot" style="background:${m.cor}"></i>${esc(m.nome)}</span><span class="${n ? 'tag ok' : 'btn small primary'}">${n ? `${n} presente${n > 1 ? 's' : ''}` : 'Fazer chamada'}</span></a>`;
+    }).join('') : `<div class="empty">Não há aulas na grade de ${DIAS[dow].toLowerCase()}. Ajuste a grade em Ajustes.</div>`}</div>`;
+  } else if (ui.presTab === 'ranking'){
+    corpo = viewRanking();
+  } else {
+    corpo = viewSumidos();
+  }
+  return `<div class="head"><h1>Presença</h1></div>
+  <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.presTab === id}" class="${ui.presTab === id ? 'on' : ''}" data-act="presTab" data-v="${id}">${t}</button>`).join('')}</div>${corpo}`;
+}
+function periodo(p){
+  const h = new Date(), y = h.getFullYear(), m = h.getMonth();
+  if (p === 'mes') return [fmtISO(new Date(y, m, 1)), hoje(), `${MESES[m]} de ${y}`];
+  if (p === 'mesAnt') return [fmtISO(new Date(y, m-1, 1)), fmtISO(new Date(y, m, 0)), `${MESES[(m+11) % 12]}`];
+  if (p === 'tri') { const q = Math.floor(m / 3) * 3; return [fmtISO(new Date(y, q, 1)), hoje(), `${Math.floor(m/3)+1}º trimestre de ${y}`]; }
+  return [`${y}-01-01`, hoje(), `${y}`];
+}
+function viewRanking(){
+  const [ini, fim, nome] = periodo(ui.rankPer);
+  const turmasMod = new Set(S.config.turmas.filter(t => !ui.rankMod || t.mod === ui.rankMod).map(t => t.id));
+  const cont = {};
+  Object.values(S.presencas).forEach(p => {
+    if (p.data < ini || p.data > fim || !turmasMod.has(p.turma)) return;
+    Object.keys(p.alunos || {}).forEach(id => { cont[id] = (cont[id] || 0) + 1; });
+  });
+  const arr = Object.entries(cont).filter(([id]) => S.alunos[id]).sort((a, b) => b[1] - a[1]);
+  const max = arr.length ? arr[0][1] : 1;
+  let pos = 0, ult = null;
+  return `<div class="filters">
+    <select id="rankPer" aria-label="Período">${[['mes','Este mês'],['mesAnt','Mês passado'],['tri','Este trimestre'],['ano','Este ano']].map(([v, t]) => `<option value="${v}" ${ui.rankPer === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    <select id="rankMod" aria-label="Modalidade"><option value="">Todas as modalidades</option>${S.config.modalidades.map(m => `<option value="${m.id}" ${ui.rankMod === m.id ? 'selected' : ''}>${esc(m.nome)}</option>`).join('')}</select>
+  </div>
+  <p class="muted small">Treinos registrados em ${nome}. Empates dividem a posição.</p>
+  <div class="list">${arr.length ? arr.map(([id, n], i) => {
+    if (n !== ult){ pos = i + 1; ult = n; }
+    const a = S.alunos[id];
+    return `<a class="row" href="#/aluno/${id}"><span class="pos ${pos <= 3 ? 'p' + pos : ''}">${pos}º</span><span class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span><span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span><span class="bar"><i style="width:${Math.round(n / max * 100)}%"></i></span></span><strong style="font-family:var(--cond);font-size:24px">${n}</strong></a>`;
+  }).join('') : `<div class="empty">Nenhuma presença registrada nesse período.</div>`}</div>`;
+}
+function viewSumidos(){
+  const grupos = [[21, Infinity, 'Há 21 dias ou mais'], [14, 20, 'Entre 14 e 20 dias'], [7, 13, 'Entre 7 e 13 dias']];
+  const ativos = alunosAtivos().map(a => ({a, d:diasSumido(a)})).filter(x => x.d != null && x.d >= 7);
+  return `<p class="muted small">Alunos ativos sem presença registrada. Quem começa a faltar costuma ser quem cancela depois: um contato cedo faz diferença.</p>` +
+  grupos.map(([mn, mx, tit]) => {
+    const g = ativos.filter(x => x.d >= mn && x.d <= mx).sort((x, y) => y.d - x.d);
+    return `<h2 style="margin-top:18px">${tit} <span class="muted" style="font-size:18px">(${g.length})</span></h2><div class="list">${g.length ? g.map(({a, d}) => {
+      const link = waLink(a.telefone || a.telResp, `Oi, ${a.nome.split(' ')[0]}! Sentimos sua falta no tatame. Está tudo bem? Te esperamos no próximo treino. Oss!`);
+      return `<div class="row"><a href="#/aluno/${a.id}" class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</a><a class="grow" href="#/aluno/${a.id}" style="text-decoration:none"><span class="name" style="display:block">${esc(a.nome)}</span><span class="meta">${d} dias, último treino ${ultimaPres(a.id) ? fmtBR(ultimaPres(a.id)) : 'nunca registrado'}</span></a>${link ? `<a class="btn small ghost" href="${link}" target="_blank" rel="noopener">Chamar</a>` : ''}</div>`;
+    }).join('') : `<div class="empty">Ninguém neste grupo.</div>`}</div>`;
+  }).join('');
+}
+
+function viewChamada(data, tid){
+  const t = turma(tid);
+  if (!t || !data) return `<div class="empty">Aula não encontrada. <a href="#/presenca">Voltar</a></div>`;
+  const m = mod(t.mod) || {nome:'?', cor:'#999'};
+  return `<p><a href="#/presenca" class="muted small">Voltar para presença</a></p>
+  <h1 style="display:flex;align-items:center;gap:10px"><i class="dot" style="background:${m.cor};width:14px;height:14px"></i>${esc(m.nome)}</h1>
+  <p class="muted">${DIAS[parseD(data).getDay()]}, ${fmtBR(data)}, ${t.hora}</p>
+  <div class="sticky-count"><span><span class="big-count" id="nPres">0</span> <span class="muted">presentes</span></span>
+    <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small ghost" data-act="add-outro" data-data="${data}" data-t="${tid}">Aluno de outra turma</button><button class="btn small ghost" data-act="limpar-chamada" data-data="${data}" data-t="${tid}">Desmarcar todos</button></span></div>
+  <input type="search" id="chamadaBusca" placeholder="Buscar na turma" value="${esc(ui.chamadaBusca)}" style="margin-bottom:12px" aria-label="Buscar aluno na turma">
+  <div class="list chamada" id="listaChamada"></div>
+  <p class="muted small">Cada toque salva na hora. Pode fechar a tela quando terminar.</p>`;
+}
+function listaChamada(data, tid){
+  const t = turma(tid); if (!t) return;
+  const key = `${data}_${tid}`, p = S.presencas[key] || {alunos:{}};
+  const q = ui.chamadaBusca.trim().toLowerCase();
+  const ids = new Set(alunosAtivos().filter(a => (a.mods || []).includes(t.mod)).map(a => a.id));
+  Object.keys(p.alunos).forEach(id => { if (S.alunos[id]) ids.add(id); });
+  const arr = [...ids].map(id => S.alunos[id]).filter(a => !q || a.nome.toLowerCase().includes(q)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  $('#nPres').textContent = Object.keys(p.alunos).length;
+  $('#listaChamada').innerHTML = arr.length ? arr.map(a => {
+    const on = !!p.alunos[a.id];
+    return `<button class="row ${on ? 'on' : ''}" data-act="toggle-pres" data-id="${a.id}" data-key="${key}" data-data="${data}" data-t="${tid}" aria-pressed="${on}">
+      <span class="mark" aria-hidden="true">${on ? '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span>
+      <span class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
+      <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>${(a.mods || []).includes(t.mod) ? '' : '<span class="meta">de outra turma</span>'}</span>
+      ${beltSVG(a.faixa, a.graus, 70)}</button>`;
+  }).join('') : `<div class="empty">Nenhum aluno ativo em ${esc(mod(t.mod)?.nome)}. Marque a modalidade na ficha do aluno.</div>`;
+}
+function togglePres(id, key, data, tid){
+  const p = S.presencas[key] ||= {data, turma:tid, alunos:{}};
+  if (p.alunos[id]) delete p.alunos[id]; else p.alunos[id] = true;
+  if (!Object.keys(p.alunos).length) delete S.presencas[key];
+  salvar(); listaChamada(data, tid);
+}
+
+/* ============ Graduações ============ */
+function viewGraduacoes(){
+  const tabs = [['alunos','Alunos'],['requisitos','Requisitos IBJJF']];
+  let corpo;
+  if (ui.gradTab === 'alunos'){
+    const filtros = [['todos','Todos'],['aptos','Aptos a trocar de faixa'],['kids','Kids (até 15 anos)'],['adultos','16 anos ou mais']];
+    let arr = ativosFaixa().map(a => ({a, st:statusGraduacao(a), idade:idadeIBJJF(a.nascimento)}));
+    if (ui.gradFiltro === 'aptos') arr = arr.filter(x => ['apto','migrar'].includes(x.st.tipo));
+    if (ui.gradFiltro === 'kids') arr = arr.filter(x => x.idade != null && x.idade < 16);
+    if (ui.gradFiltro === 'adultos') arr = arr.filter(x => x.idade != null && x.idade >= 16);
+    const ordem = {apto:0, migrar:1, graus:2, tempo:3, idade:4, 'sem-dados':5, max:6};
+    arr.sort((x, y) => ordem[x.st.tipo] - ordem[y.st.tipo] || x.a.nome.localeCompare(y.a.nome, 'pt-BR'));
+    corpo = `<div class="filters"><select id="gradFiltro" aria-label="Filtrar">${filtros.map(([v, t]) => `<option value="${v}" ${ui.gradFiltro === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div class="list">${arr.length ? arr.map(({a, st}) => `
+      <a class="row" href="#/aluno/${a.id}">${beltSVG(a.faixa, a.graus, 96)}
+        <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>
+        <span class="meta">${tagStatus(st)} na faixa há ${tempoTexto(mesesEntre(a.dataFaixa || a.dataMatricula, hoje()))}, ${presEntre(a.id, a.dataFaixa || '0000', hoje())} treinos</span></span></a>`).join('') : `<div class="empty">Nenhum aluno neste filtro.</div>`}</div>`;
+  } else {
+    corpo = `<p class="muted small">Baseado no Sistema de Graduação da IBJJF. A idade conta como ano atual menos ano de nascimento. De 4 a 15 anos não há tempo mínimo por faixa; o tempo mínimo abaixo vale a partir dos 18 anos. Os valores podem ser ajustados em Ajustes.</p>
+    <div class="list">${S.config.faixas.map(f => `<div class="row" style="cursor:default">${beltSVG(f.id, 0, 110)}<span class="grow"><span class="name" style="display:block">${esc(f.nome)}</span><span class="meta">${f.idadeMax ? `${f.idadeMin} a ${f.idadeMax} anos` : f.idadeMin ? `A partir de ${f.idadeMin} anos` : 'Qualquer idade'}${f.tempoMinMeses ? `, mínimo ${tempoTexto(f.tempoMinMeses)} nesta faixa` : ''}, até ${f.maxGraus} graus</span></span></div>`).join('')}</div>`;
+  }
+  return `<div class="head"><h1>Graduações</h1></div>
+  <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.gradTab === id}" class="${ui.gradTab === id ? 'on' : ''}" data-act="gradTab" data-v="${id}">${t}</button>`).join('')}</div>${corpo}`;
+}
+
+/* ============ Ajustes ============ */
+function viewMais(){
+  const tabs = [['grade','Grade de horários'],['modalidades','Modalidades'],...(isAdmin() ? [['planos','Planos e custos']] : []),['faixas','Faixas'],['dados','Dados e acesso']];
+  if (!tabs.find(t => t[0] === ui.maisTab)) ui.maisTab = 'grade';
+  let c = '';
+  if (ui.maisTab === 'grade'){
+    c = `<div class="tbl-wrap"><table><thead><tr><th>Dia</th><th>Horário</th><th>Modalidade</th><th></th></tr></thead><tbody>
+    ${[...S.config.turmas].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)).map(t => `<tr>
+      <td><select data-bind-turma="${t.id}" data-campo="dia" aria-label="Dia">${DIAS.map((d, i) => `<option value="${i}" ${t.dia === i ? 'selected' : ''}>${d}</option>`).join('')}</select></td>
+      <td><input type="time" data-bind-turma="${t.id}" data-campo="hora" value="${t.hora}" aria-label="Horário"></td>
+      <td><select data-bind-turma="${t.id}" data-campo="mod" aria-label="Modalidade">${S.config.modalidades.map(m => `<option value="${m.id}" ${t.mod === m.id ? 'selected' : ''}>${esc(m.nome)}</option>`).join('')}</select></td>
+      <td><button class="btn small danger" data-act="del-turma" data-id="${t.id}">Remover</button></td></tr>`).join('')}
+    </tbody></table></div><button class="btn ghost" style="margin-top:12px" data-act="add-turma">Adicionar horário</button>`;
+  } else if (ui.maisTab === 'modalidades'){
+    c = `<div class="list">${S.config.modalidades.map((m, i) => `<div class="row" style="cursor:default">
+      <input type="color" value="${m.cor}" data-bind="modalidades.${i}.cor" aria-label="Cor" style="width:44px;height:36px;border:0;background:none;padding:0">
+      <input type="text" value="${esc(m.nome)}" data-bind="modalidades.${i}.nome" aria-label="Nome da modalidade">
+      <label class="check" style="white-space:nowrap"><input type="checkbox" data-mod-faixa="${i}" ${m.faixa ? 'checked' : ''}>Usa faixa</label>
+      <button class="btn small danger" data-act="del-mod" data-id="${m.id}">Remover</button></div>`).join('')}</div>
+      <button class="btn ghost" style="margin-top:12px" data-act="add-mod">Adicionar modalidade</button>`;
+  } else if (ui.maisTab === 'planos'){
+    c = `<h3 style="margin-bottom:8px">Planos</h3><p class="muted small">Valor mensal cobrado. Semestral e anual: informe o valor por mês.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Nome</th><th>R$/mês</th><th>Duração</th><th>Modalidades cobertas</th><th></th></tr></thead><tbody>
+    ${S.config.planos.map((p, i) => `<tr><td><input type="text" value="${esc(p.nome)}" data-bind="planos.${i}.nome" aria-label="Nome"></td>
+      <td style="width:100px"><input type="number" value="${p.valor}" data-bind="planos.${i}.valor" data-num aria-label="Valor"></td>
+      <td style="width:130px"><select data-bind="planos.${i}.meses" data-num aria-label="Duração">${[[1,'Mensal'],[3,'Trimestral'],[6,'Semestral'],[12,'Anual']].map(([v, t]) => `<option value="${v}" ${p.meses == v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+      <td><div class="checks">${S.config.modalidades.map(m => `<label class="check" style="padding:4px 8px;font-size:14px"><input type="checkbox" data-plano-mod="${i}" value="${m.id}" ${p.mods.includes(m.id) ? 'checked' : ''}>${esc(m.nome)}</label>`).join('')}</div></td>
+      <td><button class="btn small danger" data-act="del-plano" data-i="${i}">Remover</button></td></tr>`).join('')}
+    </tbody></table></div><button class="btn ghost" style="margin-top:12px" data-act="add-plano">Adicionar plano</button>
+    <h3 style="margin:26px 0 8px">Custos fixos</h3>
+    <div class="grid2"><div class="field"><label for="cpct">Condomínio (% sobre mensalidades recebidas)</label><input type="number" id="cpct" value="${S.config.custos.condominioPct}" data-bind="custos.condominioPct" data-num></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Custo fixo mensal</th><th>Valor (R$)</th><th></th></tr></thead><tbody>
+    ${S.config.custos.fixos.map((f, i) => `<tr><td><input type="text" value="${esc(f.nome)}" data-bind="custos.fixos.${i}.nome" aria-label="Nome do custo"></td><td style="width:130px"><input type="number" value="${f.valor}" data-bind="custos.fixos.${i}.valor" data-num aria-label="Valor"></td><td><button class="btn small danger" data-act="del-custo" data-i="${i}">Remover</button></td></tr>`).join('')}
+    </tbody></table></div><button class="btn ghost" style="margin-top:12px" data-act="add-custo">Adicionar custo fixo</button>
+    <p class="muted small">Custos variáveis serão lançados no módulo Financeiro (próxima fase).</p>`;
+  } else if (ui.maisTab === 'faixas'){
+    c = `<p class="muted small">Valores padrão do Sistema de Graduação IBJJF. Altere se a regra mudar ou se a academia usar critério próprio.</p>
+    <label class="check" style="margin-bottom:14px"><input type="checkbox" data-exigir-graus ${S.config.exigirGraus !== false ? 'checked' : ''}>Critério da academia: só indicar troca de faixa quando o aluno tiver todos os graus</label>
+    <div class="tbl-wrap"><table><thead><tr><th>Faixa</th><th>Idade mín.</th><th>Idade máx.</th><th>Tempo mín. (meses)</th><th>Máx. graus</th></tr></thead><tbody>
+    ${S.config.faixas.map((f, i) => `<tr><td style="white-space:nowrap">${beltSVG(f.id, 0, 70)} ${esc(f.nome)}</td>
+      <td><input type="number" value="${f.idadeMin}" data-bind="faixas.${i}.idadeMin" data-num aria-label="Idade mínima"></td>
+      <td><input type="number" value="${f.idadeMax ?? ''}" data-bind="faixas.${i}.idadeMax" data-num aria-label="Idade máxima"></td>
+      <td><input type="number" value="${f.tempoMinMeses}" data-bind="faixas.${i}.tempoMinMeses" data-num aria-label="Tempo mínimo em meses"></td>
+      <td><input type="number" value="${f.maxGraus}" data-bind="faixas.${i}.maxGraus" data-num aria-label="Máximo de graus"></td></tr>`).join('')}
+    </tbody></table></div><button class="btn ghost" style="margin-top:12px" data-act="reset-faixas">Restaurar padrão IBJJF</button>`;
+  } else {
+    c = ONLINE ? painelOnline() : `<div class="panel"><h3 style="margin-bottom:8px">Visualizar como</h3>
+      <p class="muted small">Neste modo de teste, troque para ver o app como um professor (sem acesso a planos e valores). Na versão online, cada professor terá login próprio.</p>
+      <div class="checks"><label class="check"><input type="radio" name="papel" value="admin" ${isAdmin() ? 'checked' : ''} data-act="papel">Administrador</label><label class="check"><input type="radio" name="papel" value="prof" ${!isAdmin() ? 'checked' : ''} data-act="papel">Professor</label></div></div>
+    <div class="panel"><h3 style="margin-bottom:8px">Aparência</h3><div class="checks">${[['auto','Automático'],['light','Claro'],['dark','Escuro']].map(([v, t]) => `<label class="check"><input type="radio" name="tema" value="${v}" ${(S.meta.tema || 'auto') === v ? 'checked' : ''} data-act="tema">${t}</label>`).join('')}</div></div>
+    <div class="panel"><h3 style="margin-bottom:8px">Backup</h3>
+      <p class="muted small">Os dados deste modo de teste ficam só neste navegador. Copie o backup para guardar ou levar os dados para a versão online.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="copiar-backup">Copiar backup</button><button class="btn ghost" data-act="importar">Restaurar backup</button></div></div>
+    <div class="panel"><h3 style="margin-bottom:8px">Dados de exemplo</h3>
+      <p class="muted small">Cria 16 alunos fictícios com dois meses de presenças, 7 atletas e 2 campeonatos para você explorar as telas.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="exemplo">Carregar exemplos</button><button class="btn danger" data-act="limpar">Apagar todos os dados</button></div></div>`;
+  }
+  return `<div class="head"><h1>Ajustes</h1></div>
+  <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.maisTab === id}" class="${ui.maisTab === id ? 'on' : ''}" data-act="maisTab" data-v="${id}">${t}</button>`).join('')}</div>${c}`;
+}
+function setPath(obj, path, val){
+  const ks = path.split('.'); let o = obj;
+  for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]];
+  o[ks[ks.length - 1]] = val;
+}
+
+/* ============ Competição: dados padrão ============ */
+const CAT9 = ['Galo','Pluma','Pena','Leve','Médio','Meio-pesado','Pesado','Super-pesado','Pesadíssimo'];
+const COLS_GOLPES = ['4 a 12 anos','13 a 15 anos','16-17 anos e brancas adulto/master','Azul e roxa adulto/master','Marrom e preta adulto/master','Marrom e preta adulto NoGi'];
+function compPadrao(){
+  const pw = (vals) => vals.map((v, i) => ({nome:CAT9[i], max:v}));
+  const G = [
+    ['Chaves que abrem as pernas (esticando-as para os lados)', 1],
+    ['Estrangulamento com torção da coluna', 2],
+    ['Chave de pé reta', 3],
+    ['Estrangulamento Ezequiel (com a manga)', 4],
+    ['Guilhotina frontal', 5],
+    ['Omoplata', 6],
+    ['Triângulo puxando a cabeça', 7],
+    ['Katagatame (triângulo de braço)', 8],
+    ['Guarda fechada comprimindo rins ou costelas (chave de rim)', 9],
+    ['Chave de punho (mão de vaca)', 10],
+    ['Single leg com a cabeça por fora (proibido, mas sem punição)', 11],
+    ['Bíceps slicer (esmagamento do bíceps)', 12],
+    ['Calf slicer (esmagamento da panturrilha)', 13],
+    ['Chave de joelho (kneebar)', 14],
+    ['Mata-leão no pé (toe hold)', 15],
+    ['Na chave de pé reta, girar para o lado do pé que não está sendo atacado', 16],
+    ['Chave de calcanhar (heel hook)', 17],
+    ['Chaves que torcem o joelho', 18],
+    ['Cruzar a perna do adversário (knee reaping)', 19],
+    ['No toe hold, aplicar pressão para fora do pé', 20],
+    ['Bate-estaca (slam)', 21],
+    ['Chave de coluna sem estrangulamento', 22],
+    ['Queda tesoura (kani basami)', 23],
+    ['Torcer os dedos para trás', 24],
+    ['Defendendo single leg com a cabeça por fora, segurar a faixa e projetar o adversário de cabeça', 25],
+    ['Suplex que faz a cabeça ou o pescoço bater no chão', 26]
+  ];
+  const inicio = [1, 2, 9, 12, 17, 21];
+  return {
+    kimonoKg:2,
+    divisoes:[
+      ...['Mighty-Mite 1','Mighty-Mite 2','Mighty-Mite 3','Pee-Wee 1','Pee-Wee 2','Pee-Wee 3','Junior 1','Junior 2','Junior 3','Teen 1','Teen 2','Teen 3'].map((n, i) => ({nome:n, de:4+i, ate:4+i})),
+      {nome:'Juvenil 1', de:16, ate:16}, {nome:'Juvenil 2', de:17, ate:17}, {nome:'Adulto', de:18, ate:29},
+      {nome:'Master 1', de:30, ate:35}, {nome:'Master 2', de:36, ate:40}, {nome:'Master 3', de:41, ate:45},
+      {nome:'Master 4', de:46, ate:50}, {nome:'Master 5', de:51, ate:55}, {nome:'Master 6', de:56, ate:60}, {nome:'Master 7', de:61, ate:120}
+    ],
+    pesos:{
+      'adulto-gi-M': pw([57.5,64,70,76,82.3,88.3,94.3,100.5,null]),
+      'adulto-gi-F': pw([48.5,53.5,58.5,64,69,74,79.3,null]),
+      'adulto-nogi-M': pw([55.5,61.5,67.5,73.5,79.5,85.5,91.5,97.5,null]),
+      'adulto-nogi-F': pw([46.5,51.5,56.5,61.5,66.5,71.5,76.5,null]),
+      'juvenil-gi-M': pw([53.5,58.5,64,69,74,79.3,84.3,89.3,null]),
+      'juvenil-gi-F': pw([44.3,48.3,52.5,56.5,60.5,65,69,null]),
+      'juvenil-nogi-M': pw([51.5,56.5,61.5,66.5,71.5,76.5,81.5,86.5,null]),
+      'juvenil-nogi-F': pw([42.5,46.5,50.5,54.5,58.5,62.5,66.5,null])
+    },
+    kids:{
+      4:[12,14.7,18,21,24,null,null,null,null], 5:[14.7,17.9,20,24,26,null,null,null,null], 6:[17.9,18.9,22,25,28,null,null,null,null],
+      7:[18.2,21,24,27,30.2,null,null,null,null], 8:[21,24,27,30.2,33.2,null,null,null,null], 9:[24,27,30.2,33.2,36.2,null,null,null,null],
+      10:[27,30.2,33.2,36.2,39.3,null,null,null,null], 11:[30.2,33.2,36.2,39.3,42.3,null,null,null,null], 12:[32.2,36.2,40.3,44.3,48.3,null,null,null,null],
+      13:[36.2,40.3,44.3,48.3,52.5,null,null,null,null], 14:[40.3,44.3,48.3,52.5,56.5,null,null,null,null], 15:[44.3,48.3,52.5,56.5,60.5,null,null,null,null]
+    },
+    golpes:G.map(([nome, n]) => ({id:'g'+n, n, nome, desc:'', video:'', proib:inicio.map(ini => n >= ini)})),
+    pontos:[{acao:'Queda', pts:2},{acao:'Raspagem', pts:2},{acao:'Joelho na barriga', pts:2},{acao:'Passagem de guarda', pts:3},{acao:'Montada', pts:4},{acao:'Pegada pelas costas', pts:4}],
+    tempos:[{grupo:'Mighty-Mite (4 a 6 anos)', min:'2'},{grupo:'Pee-Wee (7 a 9 anos)', min:'3'},{grupo:'Junior (10 a 12 anos)', min:'4'},{grupo:'Teen (13 a 15 anos)', min:'4'},{grupo:'Juvenil (16 e 17 anos)', min:'5'},
+      {grupo:'Adulto branca', min:'5'},{grupo:'Adulto azul', min:'6'},{grupo:'Adulto roxa', min:'7'},{grupo:'Adulto marrom', min:'8'},{grupo:'Adulto preta', min:'10'},
+      {grupo:'Master branca e azul', min:'5'},{grupo:'Master roxa, marrom e preta', min:'6'}],
+    notas:[
+      {texto:'Pular na guarda fechada com o adversário em pé é falta grave para todas as faixas até 15 anos e para faixa branca de qualquer idade. Vale também para ataques que começam com pulo (triângulo e armlock voadores).'},
+      {texto:'Aplicar um golpe proibido para a categoria é falta gravíssima: desclassificação imediata da luta.'},
+      {texto:'Faltas graves acumulam: 1ª punição registrada, 2ª vantagem para o adversário, 3ª dois pontos para o adversário, 4ª desclassificação. Até 15 anos, a desclassificação só ocorre na 6ª.'},
+      {texto:'Faltas disciplinares (morder, puxar cabelo, golpes traumáticos, palavrões, agressão) geram desclassificação da luta e do evento.'},
+      {texto:'Knee reaping: coxa atrás da perna do adversário, panturrilha por cima do corpo acima do joelho, pé passando da linha média e pressão de fora para dentro, com o pé da perna atacada preso entre o quadril e a axila. Só é liberado para marrom e preta adulto NoGi.'},
+      {texto:'Pesagem: no Gi, o atleta pesa de kimono; no NoGi, com o uniforme de NoGi. Quem passa do limite é desclassificado.'}
+    ],
+    docs:[
+      {id:'d1', titulo:'IBJJF: livros de regras e sistema de graduação (site oficial)', link:'https://ibjjf.com/books-videos', data:''},
+      {id:'d2', titulo:'CBJJ: confederação brasileira (calendário e regras)', link:'https://cbjj.com.br', data:''}
+    ]
+  };
+}
+const comp = () => S.config.competicao;
+const ultimoPeso = a => { const p = a.pesos || []; return p.length ? Number(p[p.length-1].kg) : (a.peso ? Number(a.peso) : null); };
+const divisaoIdade = idade => comp().divisoes.find(d => idade >= d.de && idade <= d.ate);
+function tabelaPesos(idade, sexo, formato){
+  if (idade <= 15){
+    const lim = comp().kids[idade]; if (!lim) return null;
+    return lim.map((v, i) => ({nome:CAT9[i], max:v})).filter((c, i) => c.max != null || i === 0);
+  }
+  const g = idade <= 17 ? 'juvenil' : 'adulto';
+  return comp().pesos[`${g}-${formato}-${sexo}`] || null;
+}
+function categoriaDe({nascimento, sexo, peso, formato = 'gi'}){
+  const idade = nascimento ? idadeIBJJF(nascimento) : null;
+  const sx = sexo === 'Feminino' ? 'F' : sexo === 'Masculino' ? 'M' : null;
+  if (idade == null || !sx || !peso) return {erro:'Informe sexo, nascimento e peso'};
+  if (idade < 4) return {erro:'Abaixo da idade mínima de competição (4 anos)'};
+  const div = divisaoIdade(idade);
+  if (idade <= 15 && formato === 'nogi') return {div:div?.nome, erro:'Tabela kids NoGi não cadastrada. Consulte o edital do evento.'};
+  const bal = formato === 'gi' ? Number(peso) + Number(comp().kimonoKg || 0) : Number(peso);
+  const tab = tabelaPesos(idade, sx, formato);
+  if (!tab) return {div:div?.nome, erro:'Tabela de pesos não encontrada'};
+  const i = tab.findIndex(c => c.max == null || bal <= c.max);
+  if (i < 0){
+    const ult = tab[tab.length-1];
+    return {div:div?.nome, bal, erro:`Acima de ${ult.nome} (${ult.max} kg). ${idade <= 15 ? 'Complete as categorias mais pesadas da tabela kids com o PDF oficial.' : ''}`};
+  }
+  const c = tab[i];
+  return {div:div?.nome, idade, bal, cat:c.nome, max:c.max, margem:c.max != null ? +(c.max - bal).toFixed(1) : null, abaixo:i > 0 ? tab[i-1] : null};
+}
+function colGolpes(idade, faixaId, formato, divisao){
+  if (idade <= 12) return 0;
+  if (idade <= 15) return 1;
+  if (idade <= 17 || faixaId === 'branca') return 2;
+  if (faixaId === 'azul' || faixaId === 'roxa') return 3;
+  return formato === 'nogi' && divisao === 'adulto' ? 5 : 4;
+}
+
+/* ============ Competição: telas ============ */
+function viewCompeticao(){
+  const tabs = [['atletas','Atletas'],['campeonatos','Campeonatos'],['categorias','Categorias de peso'],['golpes','Golpes proibidos'],['regras','Regras e documentos']];
+  const corpo = {atletas:compAtletas, campeonatos:compCampeonatos, categorias:compCategorias, golpes:compGolpes, regras:compRegras}[ui.compTab]();
+  return `<div class="head"><h1>Competição</h1></div>
+  <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.compTab === id}" class="${ui.compTab === id ? 'on' : ''}" data-act="compTab" data-v="${id}">${t}</button>`).join('')}</div>${corpo}`;
+}
+function linhaCat(r, rotulo){
+  if (r.erro) return `<div class="small"><strong>${rotulo}:</strong> <span class="muted">${esc(r.erro)}</span></div>`;
+  const m = r.margem == null ? 'sem limite de peso' : r.margem < 0.5 ? `<span class="tag warn">${r.margem} kg de margem</span>` : `${r.margem} kg de margem`;
+  return `<div class="small"><strong>${rotulo}:</strong> ${esc(r.div)}, ${esc(r.cat)}${r.max ? ` (até ${r.max} kg)` : ''}, ${m}</div>`;
+}
+function sparkPesos(p){
+  if (!p || p.length < 2) return '';
+  const v = p.slice(-12).map(x => Number(x.kg)), mn = Math.min(...v), mx = Math.max(...v), w = 120, h = 32, r = mx - mn || 1;
+  const pts = v.map((y, i) => `${(i / (v.length - 1) * w).toFixed(1)},${(h - 3 - (y - mn) / r * (h - 6)).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Evolução do peso"><polyline points="${pts}" fill="none" stroke="var(--red)" stroke-width="2"/></svg>`;
+}
+function compAtletas(){
+  const at = alunosAtivos().filter(a => a.atleta).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  return `<div class="head" style="margin-bottom:10px"><p class="muted small" style="margin:0;max-width:60ch">Categoria calculada pela idade IBJJF, sexo e último peso registrado. No Gi, soma ${comp().kimonoKg} kg de kimono ao peso (ajustável em Categorias de peso).</p><button class="btn primary" data-act="add-atleta">Adicionar atleta</button></div>
+  <div class="list">${at.length ? at.map(a => {
+    const p = ultimoPeso(a);
+    const gi = categoriaDe({nascimento:a.nascimento, sexo:a.sexo, peso:p, formato:'gi'});
+    const ng = categoriaDe({nascimento:a.nascimento, sexo:a.sexo, peso:p, formato:'nogi'});
+    const ult = (a.pesos || []).slice(-1)[0];
+    return `<div class="row" style="cursor:default;align-items:flex-start;flex-wrap:wrap">
+      <a href="#/aluno/${a.id}" class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</a>
+      <div class="grow" style="min-width:220px"><a href="#/aluno/${a.id}" class="name" style="display:block;text-decoration:none">${esc(a.nome)}</a>
+        <div class="meta" style="margin-bottom:6px">${beltSVG(a.faixa, a.graus, 70)} ${p ? `<strong>${p} kg</strong>` : 'Sem peso'}${ult ? ` em ${fmtBR(ult.data)}` : ''}${a.pesoAlvo ? `, alvo ${a.pesoAlvo} kg` : ''}</div>
+        ${linhaCat(gi, 'Gi')}${linhaCat(ng, 'NoGi')}</div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">${sparkPesos(a.pesos)}<button class="btn small ghost" data-act="reg-peso" data-id="${a.id}">Registrar peso</button></div></div>`;
+  }).join('') : `<div class="empty">Nenhum atleta na equipe ainda. Toque em "Adicionar atleta" ou marque "Atleta da equipe" na ficha do aluno.</div>`}</div>`;
+}
+function compCampeonatos(){
+  const h = hoje(), cs = Object.values(S.campeonatos).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  const prox = cs.filter(c => (c.data || h) >= h), pass = cs.filter(c => (c.data || h) < h).reverse();
+  const med = {};
+  cs.forEach(c => (c.inscritos || []).forEach(i => { if (!['ouro','prata','bronze'].includes(i.resultado) || !S.alunos[i.aluno]) return; const m = med[i.aluno] ||= {ouro:0, prata:0, bronze:0}; m[i.resultado]++; }));
+  const tot = Object.values(med).reduce((t, m) => ({ouro:t.ouro + m.ouro, prata:t.prata + m.prata, bronze:t.bronze + m.bronze}), {ouro:0, prata:0, bronze:0});
+  const card = c => {
+    const ins = c.inscritos || [], pend = ins.filter(i => i.status !== 'pago').length;
+    const dp = c.prazo ? diasEntre(h, c.prazo) : null;
+    return `<button class="row" data-act="edit-camp" data-id="${c.id}"><span class="grow"><span class="name" style="display:block">${esc(c.nome)}</span>
+      <span class="meta">${fmtBR(c.data)}${c.local ? `, ${esc(c.local)}` : ''} <span class="tag">${esc(c.federacao || 'Outra')}</span> <span class="tag">${c.formato === 'nogi' ? 'NoGi' : c.formato === 'ambos' ? 'Gi e NoGi' : 'Gi'}</span>
+      ${dp != null && dp >= 0 && dp <= 7 ? `<span class="tag red">Inscrição fecha em ${dp} dia${dp === 1 ? '' : 's'}</span>` : ''}${pend ? `<span class="tag warn">${pend} pagamento${pend > 1 ? 's' : ''} pendente${pend > 1 ? 's' : ''}</span>` : ''}</span></span>
+      <strong style="font-family:var(--cond);font-size:22px">${ins.length}</strong></button>`;
+  };
+  return `<div class="head" style="margin-bottom:10px"><span></span><button class="btn primary" data-act="edit-camp">Novo campeonato</button></div>
+  <h2>Próximos</h2><div class="list" style="margin-bottom:22px">${prox.length ? prox.map(card).join('') : '<div class="empty">Nenhum campeonato agendado.</div>'}</div>
+  <h2>Quadro de medalhas</h2>
+  <div class="numeros"><div class="num"><strong style="color:#B8860B">${tot.ouro}</strong><span>ouros</span></div><div class="num"><strong style="color:#8A8D91">${tot.prata}</strong><span>pratas</span></div><div class="num"><strong style="color:#A0522D">${tot.bronze}</strong><span>bronzes</span></div></div>
+  <div class="list" style="margin-bottom:22px">${Object.keys(med).length ? Object.entries(med).sort((x, y) => y[1].ouro - x[1].ouro || y[1].prata - x[1].prata || y[1].bronze - x[1].bronze).map(([id, m]) => `<a class="row" href="#/aluno/${id}"><span class="grow name">${esc(S.alunos[id].nome)}</span><span class="small">${m.ouro} ouro, ${m.prata} prata, ${m.bronze} bronze</span></a>`).join('') : '<div class="empty">As medalhas aparecem aqui quando você registrar resultados.</div>'}</div>
+  <h2>Anteriores</h2><div class="list">${pass.length ? pass.map(card).join('') : '<div class="empty">Nenhum campeonato anterior.</div>'}</div>`;
+}
+function formCampeonato(id){
+  const c = id ? JSON.parse(JSON.stringify(S.campeonatos[id])) : {id:uid(), nome:'', data:'', prazo:'', local:'', federacao:'IBJJF', formato:'gi', valor:'', link:'', obs:'', inscritos:[]};
+  const atletas = alunosAtivos().filter(a => a.atleta || c.inscritos.some(i => i.aluno === a.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const o = (v, t, sel) => `<option value="${v}" ${sel ? 'selected' : ''}>${t}</option>`;
+  const linhaIns = (i, k) => {
+    const a = S.alunos[i.aluno]; if (!a) return '';
+    return `<tr><td>${esc(a.nome)}</td>
+      <td><select name="ins-formato-${k}" aria-label="Formato">${o('gi','Gi',i.formato !== 'nogi')}${o('nogi','NoGi',i.formato === 'nogi')}</select></td>
+      <td><input type="text" name="ins-cat-${k}" value="${esc(i.categoria)}" aria-label="Categoria"></td>
+      <td><select name="ins-status-${k}" aria-label="Pagamento">${o('pendente','Pendente',i.status !== 'pago')}${o('pago','Pago',i.status === 'pago')}</select></td>
+      <td><select name="ins-res-${k}" aria-label="Resultado">${o('','—',!i.resultado)}${o('ouro','Ouro',i.resultado === 'ouro')}${o('prata','Prata',i.resultado === 'prata')}${o('bronze','Bronze',i.resultado === 'bronze')}${o('participou','Participou',i.resultado === 'participou')}</select></td>
+      <td><button type="button" class="btn small danger" data-act="camp-rem" data-k="${k}">Tirar</button></td></tr>`;
+  };
+  abrirModal(`<form id="fCamp"><h2>${id ? 'Editar campeonato' : 'Novo campeonato'}</h2>
+    <div class="field"><label for="cn">Nome</label><input type="text" id="cn" name="nome" required value="${esc(c.nome)}" placeholder="Ex.: Campeonato Carioca FJJ-Rio"></div>
+    <div class="grid3">
+      <div class="field"><label for="cdt">Data</label><input type="date" id="cdt" name="data" value="${esc(c.data)}"></div>
+      <div class="field"><label for="cpz">Prazo de inscrição</label><input type="date" id="cpz" name="prazo" value="${esc(c.prazo)}"></div>
+      <div class="field"><label for="cv">Inscrição (R$)</label><input type="number" id="cv" name="valor" value="${esc(c.valor)}"></div>
+    </div>
+    <div class="grid3">
+      <div class="field"><label for="cf">Federação</label><select id="cf" name="federacao">${['IBJJF','CBJJ','FJJ-Rio','CBJJE','SJJSAF','Outra'].map(f => o(f, f, c.federacao === f)).join('')}</select></div>
+      <div class="field"><label for="cfo">Formato</label><select id="cfo" name="formato">${o('gi','Gi',c.formato === 'gi')}${o('nogi','NoGi',c.formato === 'nogi')}${o('ambos','Gi e NoGi',c.formato === 'ambos')}</select></div>
+      <div class="field"><label for="cl">Local</label><input type="text" id="cl" name="local" value="${esc(c.local)}"></div>
+    </div>
+    <div class="field"><label for="clk">Link do edital ou inscrição</label><input type="text" id="clk" name="link" value="${esc(c.link)}" placeholder="https://"></div>
+    <h3 style="margin:10px 0">Atletas inscritos</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Atleta</th><th>Formato</th><th>Categoria</th><th>Pagamento</th><th>Resultado</th><th></th></tr></thead><tbody id="insBody">${c.inscritos.map(linhaIns).join('')}</tbody></table></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><select id="novoIns" style="flex:1;min-width:180px" aria-label="Atleta para inscrever"><option value="">Escolher atleta para inscrever</option>${atletas.filter(a => !c.inscritos.some(i => i.aluno === a.id)).map(a => o(a.id, esc(a.nome))).join('')}</select><button type="button" class="btn ghost" data-act="camp-add">Inscrever</button></div>
+    <p class="muted small">A lista mostra os atletas da equipe. A categoria é preenchida automaticamente pelo último peso e pode ser editada.</p>
+    <div class="field"><label for="cob">Observações</label><textarea id="cob" name="obs">${esc(c.obs)}</textarea></div>
+    ${c.link ? `<p><a href="${esc(c.link)}" target="_blank" rel="noopener">Abrir edital</a></p>` : ''}
+    <div class="actions">${id ? `<button type="button" class="btn danger" data-act="camp-del" data-id="${id}" style="margin-right:auto">Excluir</button>` : ''}<button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  const ler = () => {
+    const fd = new FormData($('#fCamp'));
+    ['nome','data','prazo','local','federacao','formato','valor','link','obs'].forEach(k => { c[k] = fd.get(k); });
+    c.inscritos.forEach((i, k) => { i.formato = fd.get(`ins-formato-${k}`); i.categoria = fd.get(`ins-cat-${k}`); i.status = fd.get(`ins-status-${k}`); i.resultado = fd.get(`ins-res-${k}`); });
+  };
+  const redesenhar = () => { $('#insBody').innerHTML = c.inscritos.map(linhaIns).join(''); };
+  window._camp = {
+    add(){ ler(); const aid = $('#novoIns').value; if (!aid) return toast('Escolha um atleta.');
+      const a = S.alunos[aid], fmt = c.formato === 'nogi' ? 'nogi' : 'gi';
+      const r = categoriaDe({nascimento:a.nascimento, sexo:a.sexo, peso:ultimoPeso(a), formato:fmt});
+      c.inscritos.push({aluno:aid, formato:fmt, categoria:r.erro ? '' : `${r.div}, ${faixa(a.faixa).nome}, ${r.cat}`, status:'pendente', resultado:''});
+      $('#novoIns').querySelector(`option[value="${aid}"]`).remove(); redesenhar(); },
+    rem(k){ ler(); c.inscritos.splice(k, 1); redesenhar(); }
+  };
+  $('#fCamp').addEventListener('submit', e => { e.preventDefault(); ler(); if (!c.nome) return toast('Informe o nome do campeonato.'); S.campeonatos[c.id] = c; salvar(); fecharModal(); render(); toast('Campeonato salvo'); });
+}
+function compCategorias(){
+  const cp = comp(), ed = ui.compEdit;
+  const tabela = (key, titulo) => `<div class="panel"><h3 style="margin-bottom:8px">${titulo}</h3><div class="tbl-wrap"><table><thead><tr><th>Categoria</th><th>Até (kg)</th></tr></thead><tbody>
+    ${cp.pesos[key].map((c, i) => `<tr><td>${esc(c.nome)}</td><td>${ed ? `<input type="number" step="0.1" value="${c.max ?? ''}" data-bind="competicao.pesos.${key}.${i}.max" data-num aria-label="Limite ${esc(c.nome)}" style="max-width:110px">` : c.max ?? 'Sem limite'}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const kidsRows = Object.keys(cp.kids).map(Number).sort((a, b) => a - b);
+  return `<div class="panel"><h3 style="margin-bottom:10px">Descobrir a categoria</h3>
+    <div class="grid3">
+      <div class="field"><label for="simSexo">Sexo</label><select id="simSexo"><option>Masculino</option><option ${ui.sim.sexo === 'Feminino' ? 'selected' : ''}>Feminino</option></select></div>
+      <div class="field"><label for="simAno">Ano de nascimento</label><input type="number" id="simAno" value="${ui.sim.ano}"></div>
+      <div class="field"><label for="simPeso">Peso sem kimono (kg)</label><input type="number" step="0.1" id="simPeso" value="${ui.sim.peso}"></div>
+    </div>
+    <div id="simRes"></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <p class="muted small" style="margin:0;max-width:62ch">Tabelas IBJJF. Kids (4 a 15 anos) pesam de kimono e a tabela muda conforme o ano de nascimento.</p>
+      <button class="btn ${ed ? 'primary' : 'ghost'}" data-act="compEdit">${ed ? 'Concluir edição' : 'Editar tabelas'}</button></div>
+    ${ed ? `<div class="field" style="max-width:260px"><label for="kimKg">Peso estimado do kimono (kg)</label><input type="number" step="0.1" id="kimKg" value="${cp.kimonoKg}" data-bind="competicao.kimonoKg" data-num></div>` : ''}
+    <div class="grid2" style="gap:0 16px">${tabela('adulto-gi-M','Adulto e master Gi, masculino')}${tabela('adulto-gi-F','Adulto e master Gi, feminino')}${tabela('adulto-nogi-M','Adulto e master NoGi, masculino')}${tabela('adulto-nogi-F','Adulto e master NoGi, feminino')}${tabela('juvenil-gi-M','Juvenil Gi, masculino')}${tabela('juvenil-gi-F','Juvenil Gi, feminino')}${tabela('juvenil-nogi-M','Juvenil NoGi, masculino')}${tabela('juvenil-nogi-F','Juvenil NoGi, feminino')}</div>
+    <div class="panel"><h3 style="margin-bottom:6px">Kids Gi (limites com kimono)</h3>
+      <div class="notice">As cinco primeiras categorias vêm da tabela kids IBJJF 2026. As mais pesadas (Meio-pesado em diante) estão em branco: complete com o PDF oficial do evento ou da IBJJF usando "Editar tabelas".</div>
+      <div class="tbl-wrap"><table><thead><tr><th>Idade</th><th>Divisão</th>${CAT9.map(n => `<th>${n}</th>`).join('')}</tr></thead><tbody>
+      ${kidsRows.map(idade => `<tr><td>${idade}</td><td style="white-space:nowrap">${esc(divisaoIdade(idade)?.nome || '')}</td>${cp.kids[idade].map((v, j) => `<td>${ed ? `<input type="number" step="0.1" value="${v ?? ''}" data-bind="competicao.kids.${idade}.${j}" data-num style="min-width:70px" aria-label="${idade} anos ${CAT9[j]}">` : v ?? '<span class="muted">—</span>'}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div></div>`;
+}
+function simAtualiza(){
+  const box = $('#simRes'); if (!box) return;
+  const nasc = ui.sim.ano ? `${ui.sim.ano}-06-01` : '';
+  const gi = categoriaDe({nascimento:nasc, sexo:ui.sim.sexo, peso:ui.sim.peso, formato:'gi'});
+  const ng = categoriaDe({nascimento:nasc, sexo:ui.sim.sexo, peso:ui.sim.peso, formato:'nogi'});
+  const extra = r => r.erro ? '' : `<div class="muted small" style="margin:2px 0 8px">Peso na balança considerado: ${r.bal.toFixed(1)} kg${r.abaixo ? `. Para descer para ${r.abaixo.nome}, precisaria pesar até ${r.abaixo.max} kg.` : ''}</div>`;
+  box.innerHTML = linhaCat(gi, 'Gi') + extra(gi) + linhaCat(ng, 'NoGi') + extra(ng);
+}
+function compGolpes(){
+  const cp = comp(), g = ui.golpe, ed = ui.compEdit;
+  const col = colGolpes(Number(g.idade) || 0, g.faixa, g.formato, g.divisao);
+  const proib = cp.golpes.filter(x => x.proib[col]), lib = cp.golpes.filter(x => !x.proib[col]);
+  const item = (x, on) => `<details class="row" style="display:block;cursor:pointer"><summary style="display:flex;gap:10px;align-items:center;list-style:none"><span class="tag ${on ? 'red' : 'ok'}" style="min-width:34px;text-align:center">${x.n}</span><span class="grow">${esc(x.nome)}</span></summary>
+    <div style="padding:8px 0 4px 44px" class="small">${x.desc ? `<p style="margin:0 0 6px">${esc(x.desc)}</p>` : '<p class="muted" style="margin:0 0 6px">Sem explicação cadastrada. Adicione em "Editar tabela".</p>'}${x.video ? `<a href="${esc(x.video)}" target="_blank" rel="noopener">Ver vídeo ou imagem</a>` : ''}</div></details>`;
+  const adulto = Number(g.idade) >= 18;
+  return `<div class="panel"><h3 style="margin-bottom:10px">O que é proibido para este atleta?</h3>
+    <div class="grid2">
+      <div class="field"><label for="gIdade">Idade IBJJF (ano atual menos ano de nascimento)</label><input type="number" id="gIdade" min="4" max="99" value="${g.idade}"></div>
+      <div class="field"><label for="gFaixa">Faixa</label><select id="gFaixa">${['branca','azul','roxa','marrom','preta'].map(f => `<option value="${f}" ${g.faixa === f ? 'selected' : ''}>${faixa(f).nome}${f === 'branca' ? ' (ou faixa infantil)' : ''}</option>`).join('')}</select></div>
+      <div class="field"><label for="gFormato">Formato</label><select id="gFormato"><option value="gi">Gi (com kimono)</option><option value="nogi" ${g.formato === 'nogi' ? 'selected' : ''}>NoGi</option></select></div>
+      ${adulto && Number(g.idade) >= 30 ? `<div class="field"><label for="gDiv">Vai lutar em</label><select id="gDiv"><option value="adulto">Adulto</option><option value="master" ${g.divisao === 'master' ? 'selected' : ''}>Master</option></select></div>` : ''}
+    </div>
+    <p style="margin:4px 0 0"><strong>Coluna da tabela IBJJF:</strong> ${COLS_GOLPES[col]}</p></div>
+    <div class="grid2" style="gap:0 16px;align-items:start">
+      <div><h2 style="color:var(--red)">Proibidos (${proib.length})</h2><div class="list" style="margin-bottom:16px">${proib.map(x => item(x, true)).join('') || '<div class="empty">Nenhum.</div>'}</div></div>
+      <div><h2 style="color:var(--ok)">Não listados como proibidos (${lib.length})</h2><div class="list" style="margin-bottom:16px">${lib.map(x => item(x, false)).join('') || '<div class="empty">Nenhum.</div>'}</div>
+      <p class="muted small">Não estar na lista não é permissão total: o árbitro ainda pode punir execução perigosa e cada evento pode ter regra própria.</p></div>
+    </div>
+    <h2 style="margin-top:10px">Atenção também</h2>
+    <div class="list" style="margin-bottom:18px">${cp.notas.map(n => `<div class="row" style="cursor:default">${esc(n.texto)}</div>`).join('')}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Tabela completa</h2><button class="btn ${ed ? 'primary' : 'ghost'}" data-act="compEdit">${ed ? 'Concluir edição' : 'Editar tabela'}</button></div>
+    <p class="muted small">Marcado em vermelho = proibido naquela coluna. Fonte: tabela de golpes proibidos IBJJF (livro de regras de 2024).</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Técnica</th>${COLS_GOLPES.map(c => `<th style="min-width:90px">${c}</th>`).join('')}${ed ? '<th></th>' : ''}</tr></thead><tbody>
+    ${cp.golpes.map((x, i) => `<tr><td>${x.n}</td><td>${ed ? `<input type="text" value="${esc(x.nome)}" data-bind="competicao.golpes.${i}.nome" aria-label="Nome"><input type="text" value="${esc(x.desc)}" data-bind="competicao.golpes.${i}.desc" placeholder="Explicação para os alunos" style="margin-top:4px" aria-label="Explicação"><input type="text" value="${esc(x.video)}" data-bind="competicao.golpes.${i}.video" placeholder="Link de vídeo ou imagem" style="margin-top:4px" aria-label="Link">` : esc(x.nome)}</td>
+      ${x.proib.map((p, j) => `<td style="text-align:center">${ed ? `<input type="checkbox" data-golpe="${i}" data-col="${j}" ${p ? 'checked' : ''} aria-label="Proibido em ${COLS_GOLPES[j]}" style="width:20px;height:20px;accent-color:var(--red)">` : p ? '<span class="dot" style="background:var(--red);width:12px;height:12px" title="Proibido"></span>' : ''}</td>`).join('')}
+      ${ed ? `<td><button class="btn small danger" data-act="comp-del" data-path="golpes" data-i="${i}">Remover</button></td>` : ''}</tr>`).join('')}
+    </tbody></table></div>
+    ${ed ? `<button class="btn ghost" style="margin-top:12px" data-act="add-golpe">Adicionar técnica</button><button class="btn ghost" style="margin:12px 0 0 8px" data-act="reset-comp">Restaurar tudo ao padrão IBJJF</button>` : ''}`;
+}
+function tabelaSimples(path, cols, rows, ed){
+  return `<div class="tbl-wrap"><table><thead><tr>${cols.map(c => `<th>${c.label}</th>`).join('')}${ed ? '<th></th>' : ''}</tr></thead><tbody>
+  ${rows.map((r, i) => `<tr>${cols.map(c => `<td>${ed ? `<input type="${c.num ? 'number' : 'text'}" value="${esc(r[c.key])}" data-bind="competicao.${path}.${i}.${c.key}" ${c.num ? 'data-num' : ''} aria-label="${c.label}">` : c.link && r[c.key] ? `<a href="${esc(r[c.key])}" target="_blank" rel="noopener">Abrir</a>` : esc(r[c.key] ?? '')}</td>`).join('')}${ed ? `<td><button class="btn small danger" data-act="comp-del" data-path="${path}" data-i="${i}">Remover</button></td>` : ''}</tr>`).join('')}
+  </tbody></table></div>${ed ? `<button class="btn ghost small" style="margin-top:8px" data-act="comp-add" data-path="${path}">Adicionar linha</button>` : ''}`;
+}
+function compRegras(){
+  const cp = comp(), ed = ui.compEdit;
+  return `<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn ${ed ? 'primary' : 'ghost'}" data-act="compEdit">${ed ? 'Concluir edição' : 'Editar regras'}</button></div>
+  <div class="panel"><h3 style="margin-bottom:6px">Documentos e anexos</h3>
+    <p class="muted small">Para anexar o livro de regras ou um edital: salve o PDF numa pasta do Google Drive, copie o link de compartilhamento e cole aqui em "Editar regras". Quando a regra mudar, troque o link e a data.</p>
+    ${tabelaSimples('docs', [{key:'titulo', label:'Documento'},{key:'data', label:'Versão ou data'},{key:'link', label:'Link', link:true}], cp.docs, ed)}</div>
+  <div class="grid2" style="gap:0 16px;align-items:start">
+    <div class="panel"><h3 style="margin-bottom:6px">Pontuação</h3>${tabelaSimples('pontos', [{key:'acao', label:'Ação'},{key:'pts', label:'Pontos', num:true}], cp.pontos, ed)}
+      <p class="muted small">Posições precisam ser estabilizadas por 3 segundos para pontuar. Vantagem vale quando a ação quase pontua.</p></div>
+    <div class="panel"><h3 style="margin-bottom:6px">Tempo de luta (minutos)</h3>${tabelaSimples('tempos', [{key:'grupo', label:'Categoria'},{key:'min', label:'Min.'}], cp.tempos, ed)}
+      <p class="muted small">Confira no edital: alguns eventos alteram os tempos.</p></div>
+  </div>
+  <div class="panel"><h3 style="margin-bottom:6px">Divisões por idade</h3><p class="muted small">Idade IBJJF = ano atual menos ano de nascimento. Masters podem lutar também no Adulto.</p>
+    ${tabelaSimples('divisoes', [{key:'nome', label:'Divisão'},{key:'de', label:'De', num:true},{key:'ate', label:'Até', num:true}], cp.divisoes, ed)}</div>
+  <div class="panel"><h3 style="margin-bottom:6px">Notas e punições</h3>${tabelaSimples('notas', [{key:'texto', label:'Regra'}], cp.notas, ed)}</div>`;
+}
+function formPeso(id){
+  const a = S.alunos[id];
+  abrirModal(`<form id="fPeso"><h2>Registrar peso</h2><p><strong>${esc(a.nome)}</strong></p>
+    <div class="grid3"><div class="field"><label for="pk">Peso sem kimono (kg)</label><input type="number" step="0.1" id="pk" name="kg" required value="${ultimoPeso(a) ?? ''}"></div>
+    <div class="field"><label for="pd">Data</label><input type="date" id="pd" name="data" value="${hoje()}"></div>
+    <div class="field"><label for="pa">Peso alvo (kg)</label><input type="number" step="0.1" id="pa" name="alvo" value="${esc(a.pesoAlvo)}"></div></div>
+    ${(a.pesos || []).length ? `<h3 style="margin:6px 0">Histórico</h3><div class="list" style="max-height:200px;overflow:auto">${[...a.pesos].reverse().map(p => `<div class="row" style="cursor:default"><span class="grow">${fmtBR(p.data)}</span><strong>${p.kg} kg</strong></div>`).join('')}</div>` : ''}
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar peso</button></div></form>`);
+  $('#fPeso').addEventListener('submit', e => {
+    e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
+    const a = S.alunos[id]; if (!a) return toast('Aluno não encontrado.');
+    a.pesos ||= []; a.pesos.push({data:fd.data, kg:Number(fd.kg)}); a.pesos.sort((x, y) => x.data.localeCompare(y.data));
+    a.peso = ultimoPeso(a); a.pesoAlvo = fd.alvo; salvar(); fecharModal(); render(); toast('Peso registrado');
+  });
+}
+
+/* ============ Importar do Google Forms ============ */
+function parseTabela(txt){
+  const d = txt.split('\n')[0].includes('\t') ? '\t' : ',';
+  const rows = []; let row = [], cel = '', q = false;
+  for (let i = 0; i < txt.length; i++){
+    const ch = txt[i];
+    if (q){ if (ch === '"' && txt[i+1] === '"'){ cel += '"'; i++; } else if (ch === '"') q = false; else cel += ch; }
+    else if (ch === '"' && cel === '') q = true;
+    else if (ch === d){ row.push(cel); cel = ''; }
+    else if (ch === '\n' || ch === '\r'){ if (ch === '\r' && txt[i+1] === '\n') i++; row.push(cel); rows.push(row); row = []; cel = ''; }
+    else cel += ch;
+  }
+  if (cel !== '' || row.length){ row.push(cel); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim()));
+}
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+function dataForm(s){
+  s = String(s || '').trim().split(' ')[0]; let m;
+  if ((m = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/))) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) return `${m[3]}-${pad(m[2])}-${pad(m[1])}`;
+  return '';
+}
+function faixaForm(s){
+  const n = norm(s);
+  const mapa = [['cinza','cinza'],['amarel','amarela'],['laranj','laranja'],['verde','verde'],['azul','azul'],['rox','roxa'],['marrom','marrom'],['pret','preta']];
+  const f = mapa.find(([k]) => n.includes(k));
+  return f ? f[1] : 'branca';
+}
+function importarForms(txt){
+  const rows = parseTabela(txt);
+  if (rows.length < 2) return {erro:'Não encontrei linhas. Copie a planilha inteira, incluindo a linha de títulos.'};
+  const H = rows[0].map(norm);
+  const achar = (fn, depois = -1) => H.findIndex((h, i) => i > depois && fn(h));
+  const cNome = achar(h => h.includes('nome completo do aluno') || h === 'nome' || h.includes('nome do aluno'));
+  const cNasc = achar(h => h.includes('nascimento'));
+  const cTel = achar(h => h.startsWith('telefone'));
+  const cTipo = achar(h => h.includes('o aluno e'));
+  const cResp = achar(h => h.startsWith('nome completo') && !h.includes('aluno'));
+  const cPar = achar(h => h.includes('parentesco'));
+  const cTelResp = cTel >= 0 ? achar(h => h.startsWith('telefone'), cTel) : -1;
+  const cLes = achar(h => h.includes('lesao') || h.includes('limitacao'));
+  const cMed = achar(h => h.includes('condicao medica'));
+  const cArte = achar(h => h.includes('arte marcial'));
+  const cFaixa = achar(h => h.includes('faixa'));
+  const cData = achar(h => h.includes('carimbo') || h.includes('timestamp'));
+  const cSexo = achar(h => h === 'sexo' || h.startsWith('sexo'));
+  const cMod = achar(h => h.includes('modalidade'));
+  const cEmail = achar(h => h.includes('e-mail') || h === 'email');
+  const cEmerg = achar(h => h.includes('emergencia'));
+  const cComo = achar(h => h.includes('como conheceu'));
+  const cInd = achar(h => h.includes('quem indicou'));
+  const cImg = achar(h => h.includes('uso de imagem'));
+  const cBio = achar(h => h.includes('reconhecimento facial'));
+  if (cNome < 0) return {erro:'Não encontrei a coluna com o nome do aluno. Confira se copiou a linha de títulos.'};
+  const vazio = v => ['', 'nao', 'não', 'n/a', '-', 'nenhum', 'nenhuma'].includes(norm(v));
+  const existentes = new Set(Object.values(S.alunos).map(a => norm(a.nome) + '|' + (a.nascimento || '')));
+  let novos = 0, dup = 0;
+  rows.slice(1).forEach(r => {
+    const g = c => c >= 0 ? String(r[c] || '').trim() : '';
+    const nome = g(cNome).replace(/\s+/g, ' '); if (!nome) return;
+    const nomeFmt = nome === nome.toUpperCase() ? nome.toLowerCase().replace(/(^|\s)(\S)/g, (m, s, l) => s + l.toUpperCase()) : nome;
+    const nasc = dataForm(g(cNasc));
+    if (existentes.has(norm(nomeFmt) + '|' + nasc)){ dup++; return; }
+    const crianca = norm(g(cTipo)).includes('crianca') || (nasc && idadeReal(nasc) < 18);
+    const saude = [g(cLes), g(cMed)].filter(v => !vazio(v)).join('. ');
+    const fx = faixaForm(g(cFaixa)), dm = dataForm(g(cData)) || hoje();
+    const mt = norm(g(cMod)), mods = [];
+    if (mt.includes('kids')) mods.push('kids');
+    if (mt.includes('adulto')) mods.push('jj');
+    if (mt.includes('nogi') || mt.includes('no-gi') || mt.includes('no gi')) mods.push('nogi');
+    if (mt.includes('muay')) mods.push('mt');
+    const sx = norm(g(cSexo)).startsWith('f') ? 'Feminino' : norm(g(cSexo)).startsWith('m') ? 'Masculino' : '';
+    const obs = [!vazio(g(cArte)) ? `Experiência anterior: ${g(cArte)}` : '', !vazio(g(cComo)) ? `Conheceu a SAFE por: ${g(cComo)}` : ''].filter(Boolean).join('. ');
+    const id = uid();
+    S.alunos[id] = {id, nome:nomeFmt, nascimento:nasc, telefone:g(cTel).replace(/[^\d+]/g, ''), status:'novo',
+      responsavel: crianca && !vazio(g(cResp)) ? `${g(cResp)}${!vazio(g(cPar)) ? ` (${g(cPar)})` : ''}` : '',
+      telResp: crianca && !vazio(g(cTelResp)) ? g(cTelResp).replace(/[^\d+]/g, '') : '',
+      saude, obs, sexo:sx, email:g(cEmail), emergencia:g(cEmerg), indicadoPor: vazio(g(cInd)) ? '' : g(cInd),
+      consImagem: norm(g(cImg)).startsWith('autorizo'), consBio: norm(g(cBio)).startsWith('autorizo'),
+      mods: mods.length ? mods : (crianca && nasc && idadeIBJJF(nasc) <= 15 ? ['kids'] : []), faixa:fx, graus:0, dataFaixa:dm, dataMatricula:dm,
+      bolsa:'nenhuma', origem:'Google Forms', historico:[{id:uid(), tipo:'faixa', faixa:fx, graus:0, data:dm, obs:'Faixa informada no cadastro'}]};
+    existentes.add(norm(nomeFmt) + '|' + nasc); novos++;
+  });
+  salvar();
+  return {novos, dup};
+}
+
+/* ============ Versão online (Firebase) ============ */
+const CAMPOS_FIN = ['plano','vencimento','bolsa','bolsaPct','desconto','descontoMotivo'];
+let auth = null, db = null, usuario = null, estadoAuth = ONLINE ? 'carregando' : 'ok', pronto = false, base = {}, R = {};
+let subsPerfil = [], subsDados = [], papelAtivo = null, criandoPerfil = false, nomeCadastro = '', pendRender = false, equipe = {};
+function msgAuth(e){
+  const c = (e && e.code) || '';
+  if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return 'E-mail ou senha incorretos.';
+  if (c.includes('email-already-in-use')) return 'Já existe uma conta com esse e-mail. Toque em "Já tenho conta" para entrar.';
+  if (c.includes('weak-password')) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (c.includes('invalid-email')) return 'E-mail inválido. Confira se digitou certo.';
+  if (c.includes('network')) return 'Sem conexão com a internet. Tente de novo.';
+  if (c.includes('too-many-requests')) return 'Muitas tentativas seguidas. Aguarde alguns minutos.';
+  return 'Não foi possível concluir. Tente de novo.';
+}
+function iniciarFirebase(){
+  if (!window.firebase){ estadoAuth = 'semsdk'; render(); return; }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  auth = firebase.auth(); db = firebase.database(); auth.languageCode = 'pt';
+  auth.onAuthStateChanged(u => {
+    subsPerfil.forEach(f => f()); subsPerfil = []; pararDados(); usuario = u; papelAtivo = null;
+    if (!u){ estadoAuth = 'login'; render(); return; }
+    estadoAuth = 'carregando'; render();
+    const ref = db.ref('usuarios/' + u.uid);
+    const h = ref.on('value', snap => {
+      const v = snap.val();
+      if (!v){ criarPerfil(u); return; }
+      S.meta.nome = v.nome; S.meta.email = v.email;
+      if (v.papel === 'admin' || v.papel === 'prof'){
+        if (papelAtivo !== v.papel){ S.meta.papel = v.papel; papelAtivo = v.papel; estadoAuth = 'ok'; iniciarDados(); }
+      } else { pararDados(); papelAtivo = null; estadoAuth = v.papel === 'bloqueado' ? 'bloqueado' : 'pendente'; render(); }
+    }, () => { estadoAuth = 'erro'; render(); });
+    subsPerfil.push(() => ref.off('value', h));
+  });
+}
+async function criarPerfil(u){
+  if (criandoPerfil) return; criandoPerfil = true;
+  const nome = nomeCadastro || (u.email || '').split('@')[0];
+  const ref = db.ref('usuarios/' + u.uid);
+  try { await ref.set({nome, email:u.email, papel:'admin', criado:hoje()}); }
+  catch(e){ try { await ref.set({nome, email:u.email, papel:'pendente', criado:hoje()}); } catch(e2){ estadoAuth = 'erro'; render(); } }
+  criandoPerfil = false;
+}
+function pararDados(){ subsDados.forEach(f => f()); subsDados = []; pronto = false; R = {}; }
+function iniciarDados(){
+  pararDados(); render();
+  const paths = ['config','alunos','presencas','campeonatos', ...(isAdmin() ? ['configFin','alunosFin'] : [])];
+  const carregado = {};
+  paths.forEach(p => {
+    const ref = db.ref(p);
+    const h = ref.on('value', snap => {
+      R[p] = snap.val(); carregado[p] = true;
+      if (paths.every(x => carregado[x])) reconstruir();
+    }, () => toast('Sem permissão para ler os dados. Fale com o administrador.'));
+    subsDados.push(() => ref.off('value', h));
+  });
+  if (isAdmin()){
+    const ref = db.ref('usuarios');
+    const h = ref.on('value', snap => { equipe = snap.val() || {}; if (pronto) agendarRender(); });
+    subsDados.push(() => ref.off('value', h));
+  }
+}
+function reconstruir(){
+  const fin = R.alunosFin || {}, alunos = {};
+  Object.entries(R.alunos || {}).forEach(([id, a]) => { alunos[id] = {...a, ...(fin[id] || {}), id}; });
+  S.config = R.config ? JSON.parse(JSON.stringify(R.config)) : configPadrao();
+  if (R.configFin) Object.assign(S.config, JSON.parse(JSON.stringify(R.configFin)));
+  S.alunos = alunos; S.presencas = JSON.parse(JSON.stringify(R.presencas || {})); S.campeonatos = JSON.parse(JSON.stringify(R.campeonatos || {}));
+  normalizar(); _idx = null;
+  base = mapear(); let iniciar = false;
+  if (!R.config){ delete base.config; iniciar = true; }
+  if (isAdmin() && !R.configFin){ delete base.configFin; iniciar = true; }
+  const primeiro = !pronto; pronto = true;
+  if (iniciar) salvarOnline();
+  if (primeiro) render(); else agendarRender();
+}
+function mapear(){
+  const m = {}, put = (p, v) => { m[p] = JSON.stringify(v); };
+  const {planos, custos, ...cfg} = S.config;
+  put('config', cfg);
+  if (isAdmin()) put('configFin', {planos, custos});
+  Object.values(S.alunos).forEach(a => {
+    const f = {}, b = {};
+    Object.entries(a).forEach(([k, v]) => { if (k !== 'id' && v !== undefined) (CAMPOS_FIN.includes(k) ? f : b)[k] = v; });
+    put('alunos/' + a.id, b); if (isAdmin()) put('alunosFin/' + a.id, f);
+  });
+  Object.entries(S.presencas).forEach(([k, p]) => put('presencas/' + k, p));
+  Object.values(S.campeonatos).forEach(c => put('campeonatos/' + c.id, c));
+  return m;
+}
+function salvarOnline(){
+  if (!pronto || !db) return;
+  const cur = mapear(), up = {};
+  Object.keys(cur).forEach(k => { if (cur[k] !== base[k]) up[k] = JSON.parse(cur[k]); });
+  Object.keys(base).forEach(k => { if (!(k in cur)) up[k] = null; });
+  if (!Object.keys(up).length) return;
+  base = cur;
+  db.ref().update(up).catch(e => toast(String(e && e.message || '').includes('ermission') ? 'Sem permissão para salvar essa alteração.' : 'Não foi possível salvar. Confira a internet e tente de novo.'));
+}
+function agendarRender(){
+  const a = document.activeElement;
+  const digitando = a && a.closest && a.closest('#main') && ['INPUT','TEXTAREA','SELECT'].includes(a.tagName);
+  if ($('#modal-root').innerHTML || digitando){ pendRender = true; return; }
+  render();
+}
+document.addEventListener('focusout', () => { if (pendRender) setTimeout(() => { if (pendRender) agendarRender(); }, 50); });
+const pendentesEquipe = () => Object.values(equipe).filter(u => u.papel === 'pendente').length;
+function painelOnline(){
+  const lista = Object.entries(equipe).sort((a, b) => (a[1].nome || '').localeCompare(b[1].nome || '', 'pt-BR'));
+  const papeis = [['pendente','Aguardando aprovação'],['prof','Professor'],['admin','Administrador'],['bloqueado','Sem acesso']];
+  return `<div class="panel"><h3 style="margin-bottom:8px">Sua conta</h3>
+    <p style="margin:0 0 10px">${esc(S.meta.nome || '')}<br><span class="muted small">${esc(S.meta.email || '')}, ${isAdmin() ? 'administrador' : 'professor'}</span></p>
+    <button class="btn ghost" data-act="sair">Sair do app</button></div>
+  ${isAdmin() ? `<div class="panel"><h3 style="margin-bottom:8px">Equipe</h3>
+    <p class="muted small">Professores criam a própria conta no link do app. Aqui você libera o acesso. Professor vê tudo menos o financeiro; administrador vê tudo.</p>
+    <div class="list">${lista.map(([id, u]) => `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="grow" style="min-width:180px"><span class="name" style="display:block">${esc(u.nome)}</span><span class="meta">${esc(u.email)}</span></span>
+      ${id === usuario.uid ? '<span class="tag">Você</span>' : `<select data-papel-uid="${id}" aria-label="Acesso de ${esc(u.nome)}" style="max-width:220px">${papeis.map(([v, t]) => `<option value="${v}" ${u.papel === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`}</div>`).join('')}</div></div>` : ''}
+  <div class="panel"><h3 style="margin-bottom:8px">Aparência neste aparelho</h3><div class="checks">${[['auto','Automático'],['light','Claro'],['dark','Escuro']].map(([v, t]) => `<label class="check"><input type="radio" name="tema" value="${v}" ${(S.meta.tema || 'auto') === v ? 'checked' : ''} data-act="tema">${t}</label>`).join('')}</div></div>
+  ${isAdmin() ? `<div class="panel"><h3 style="margin-bottom:8px">Backup e dados</h3>
+    <p class="muted small">Os dados ficam guardados online e sincronizados entre todos os aparelhos. Copiar um backup de vez em quando é uma segurança extra. "Restaurar backup" também serve para trazer os dados do modo teste.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="copiar-backup">Copiar backup</button><button class="btn ghost" data-act="importar">Restaurar backup</button><button class="btn danger" data-act="limpar">Apagar alunos, presenças e campeonatos</button></div></div>` : ''}`;
+}
+function telaAuth(){
+  const caixa = h => `<div style="max-width:400px;margin:8vh auto 0"><div class="brand" style="padding:0 0 22px"><b>SAFE</b><span>gestão</span></div>${h}</div>`;
+  if (estadoAuth === 'carregando') return caixa('<p class="muted">Carregando...</p>');
+  if (estadoAuth === 'semsdk') return caixa('<div class="notice">Não foi possível conectar ao servidor. Confira a internet e recarregue a página.</div>');
+  if (estadoAuth === 'erro') return caixa('<div class="notice">Não foi possível carregar seu acesso. Recarregue a página. Se continuar, fale com o administrador.</div><button class="btn ghost" data-act="sair">Sair</button>');
+  if (estadoAuth === 'pendente') return caixa(`<h1 style="font-size:32px;margin-bottom:10px">Conta criada</h1><p>Seu acesso está aguardando a aprovação do administrador da academia. Assim que ele liberar, esta tela abre o app sozinha.</p><p class="muted small">${esc(usuario && usuario.email)}</p><button class="btn ghost" data-act="sair">Sair</button>`);
+  if (estadoAuth === 'bloqueado') return caixa(`<h1 style="font-size:32px;margin-bottom:10px">Acesso desativado</h1><p>Seu acesso ao app foi desativado pelo administrador.</p><button class="btn ghost" data-act="sair">Sair</button>`);
+  if (estadoAuth === 'cadastro') return caixa(`<h1 style="font-size:32px;margin-bottom:16px">Criar conta</h1>
+    <form id="fCadastro"><div class="field"><label for="cNome">Seu nome</label><input type="text" id="cNome" required autocomplete="name"></div>
+    <div class="field"><label for="cEmail">E-mail</label><input type="email" id="cEmail" required autocomplete="email"></div>
+    <div class="field"><label for="cSenha">Senha (mínimo 6 caracteres)</label><input type="password" id="cSenha" required minlength="6" autocomplete="new-password" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-height:42px"></div>
+    <button class="btn primary" type="submit" style="width:100%;justify-content:center">Criar conta</button></form>
+    <p style="text-align:center"><button class="btn ghost small" data-act="ir-login">Já tenho conta</button></p>`);
+  return caixa(`<h1 style="font-size:32px;margin-bottom:16px">Entrar</h1>
+    <form id="fLogin"><div class="field"><label for="lEmail">E-mail</label><input type="email" id="lEmail" required autocomplete="email"></div>
+    <div class="field"><label for="lSenha">Senha</label><input type="password" id="lSenha" required autocomplete="current-password" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-height:42px"></div>
+    <button class="btn primary" type="submit" style="width:100%;justify-content:center">Entrar</button></form>
+    <p style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn ghost small" data-act="esqueci">Esqueci minha senha</button><button class="btn ghost small" data-act="ir-cadastro">Criar conta</button></p>`);
+}
+document.addEventListener('submit', e => {
+  if (e.target.id === 'fLogin'){
+    e.preventDefault(); const b = e.target.querySelector('button[type=submit]'); b.disabled = true;
+    auth.signInWithEmailAndPassword($('#lEmail').value.trim(), $('#lSenha').value).catch(err => { toast(msgAuth(err)); b.disabled = false; });
+  } else if (e.target.id === 'fCadastro'){
+    e.preventDefault(); const b = e.target.querySelector('button[type=submit]'); b.disabled = true;
+    nomeCadastro = $('#cNome').value.trim();
+    auth.createUserWithEmailAndPassword($('#cEmail').value.trim(), $('#cSenha').value).catch(err => { toast(msgAuth(err)); b.disabled = false; });
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target; if (!t.dataset || !t.dataset.papelUid) return;
+  db.ref('usuarios/' + t.dataset.papelUid + '/papel').set(t.value).then(() => toast('Acesso atualizado')).catch(() => toast('Não foi possível alterar o acesso.'));
+});
+
+/* ============ Modal ============ */
+function abrirModal(html){
+  $('#modal-root').innerHTML = `<div class="modal-bg" data-act="fundo"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+  document.body.style.overflow = 'hidden';
+  const first = $('#modal-root').querySelector('input:not([type=hidden]):not([type=file]),select,textarea'); if (first) first.focus();
+}
+function confirmar(msg, ok = 'Confirmar'){
+  return new Promise(res => {
+    abrirModal(`<h2>Confirme</h2><p>${esc(msg)}</p><div class="actions"><button class="btn ghost" id="cfNo">Cancelar</button><button class="btn primary" id="cfOk">${esc(ok)}</button></div>`);
+    $('#cfNo').onclick = () => { fecharModal(); res(false); };
+    $('#cfOk').onclick = () => { fecharModal(); res(true); };
+    $('#cfOk').focus();
+  });
+}
+function fecharModal(){ $('#modal-root').innerHTML = ''; document.body.style.overflow = ''; if (pendRender) setTimeout(agendarRender, 0); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modal-root').innerHTML) fecharModal(); });
+
+/* ============ Exemplo ============ */
+function carregarExemplo(){
+  const h = hoje(), ano = new Date().getFullYear();
+  const L = [
+    ['Lucas Andrade','1990-03-14','Masculino',['jj','nogi'],'roxa',2,-30,'p1'],
+    ['Mariana Costa','1995-09-02','Feminino',['jj'],'azul',3,-28,'p2'],
+    ['Pedro Henrique Lima','1988-11-20','Masculino',['jj','nogi'],'marrom',1,-14,'p3'],
+    ['Bruno Carvalho','2000-01-09','Masculino',['jj','mt'],'branca',4,-10,'p5'],
+    ['Ana Beatriz Rocha','1998-09-27','Feminino',['mt'],'branca',0,-6,'p4'],
+    ['Rafael Monteiro','1985-06-18','Masculino',['jj'],'azul',1,-8,'p1'],
+    ['Thiago Nunes','1992-12-01','Masculino',['nogi'],'branca',2,-5,'p1'],
+    ['Juliana Freitas','1997-04-30','Feminino',['jj','nogi'],'azul',4,-26,'p1'],
+    ['Gabriel Pires','2009-09-12','Masculino',['jj'],'verde',2,-12,'p1'],
+    ['Carla Mendes','1991-02-22','Feminino',['mt'],'branca',0,-4,'p4'],
+    ['João Victor Alves','2010-05-05','Masculino',['jj'],'laranja-preta',3,-9,'p2'],
+    ['Enzo Ribeiro',`${ano-10}-07-19`,'Masculino',['kids'],'cinza-preta',4,-11,'p1'],
+    ['Helena Martins',`${ano-8}-09-03`,'Feminino',['kids'],'cinza',2,-7,'p1'],
+    ['Miguel Souza',`${ano-11}-01-25`,'Masculino',['kids'],'amarela',1,-6,'p3'],
+    ['Davi Oliveira',`${ano-6}-10-10`,'Masculino',['kids'],'branca',3,-5,'p1'],
+    ['Laura Teixeira',`${ano-13}-03-08`,'Feminino',['kids'],'laranja-branca',4,-15,'p1']
+  ];
+  const ids = [];
+  L.forEach(([nome, nasc, sexo, mods, fx, graus, mesesFaixa, plano], i) => {
+    const id = uid() + i, df = fmtISO(new Date(new Date().getFullYear(), new Date().getMonth() + mesesFaixa, 5));
+    const kid = idadeReal(nasc) < 18;
+    S.alunos[id] = {id, nome, nascimento:nasc, sexo, mods, faixa:fx, graus, dataFaixa:df, dataMatricula:addDias(df, -200), status:'ativo', plano, vencimento:[5,10,15][i % 3],
+      telefone: kid ? '' : `2199${String(1000000 + i * 7919).slice(0,7)}`, responsavel: kid ? 'Responsável ' + nome.split(' ')[1] : '', telResp: kid ? `2198${String(2000000 + i * 3571).slice(0,7)}` : '',
+      bolsa: i === 8 ? 'parcial' : 'nenhuma', bolsaPct: i === 8 ? 50 : '', desconto: i === 3 ? 30 : '', descontoMotivo: i === 3 ? 'Indicação' : '',
+      consImagem: true, consBio: i % 2 === 0, historico:[{id:uid(), tipo:'faixa', faixa:fx, graus:0, data:df, obs:'Exemplo'}]};
+    ids.push({id, mods, freq:[.85,.7,.6,.9,.5,.3,.65,.8,.75,.55,.6,.8,.7,.65,.5,.9][i], para: i === 5 ? 25 : i === 9 ? 16 : i === 6 ? 9 : 0});
+  });
+  for (let k = 70; k >= 0; k--){
+    const d = addDias(h, -k), dow = parseD(d).getDay();
+    S.config.turmas.filter(t => t.dia === dow).forEach(t => {
+      const pres = {};
+      ids.forEach(x => { if (x.mods.includes(t.mod) && k >= x.para && Math.random() < x.freq) pres[x.id] = true; });
+      if (Object.keys(pres).length) S.presencas[`${d}_${t.id}`] = {data:d, turma:t.id, alunos:pres};
+    });
+  }
+  const pesosEx = {0:77.8, 1:57.2, 2:88.9, 7:62.5, 8:66, 11:31.5, 12:24.8};
+  Object.entries(pesosEx).forEach(([i, kg]) => {
+    const a = S.alunos[ids[i].id]; a.atleta = true; a.peso = kg;
+    a.pesos = [{data:addDias(h, -28), kg:+(kg + 1.6).toFixed(1)}, {data:addDias(h, -14), kg:+(kg + 0.7).toFixed(1)}, {data:h, kg}];
+  });
+  const insc = (idxs, res) => idxs.map((i, k) => { const a = S.alunos[ids[i].id]; const r = categoriaDe({nascimento:a.nascimento, sexo:a.sexo, peso:a.peso, formato:'gi'});
+    return {aluno:a.id, formato:'gi', categoria:r.erro ? '' : `${r.div}, ${faixa(a.faixa).nome}, ${r.cat}`, status:k % 2 ? 'pendente' : 'pago', resultado:res ? res[k] : ''}; });
+  const c1 = uid(), c2 = uid() + 'b';
+  S.campeonatos[c1] = {id:c1, nome:'Campeonato Carioca (exemplo)', data:addDias(h, 24), prazo:addDias(h, 5), local:'Rio de Janeiro', federacao:'FJJ-Rio', formato:'gi', valor:'150', link:'', obs:'', inscritos:insc([0, 1, 7, 11])};
+  S.campeonatos[c2] = {id:c2, nome:'Open Rio (exemplo)', data:addDias(h, -40), prazo:addDias(h, -50), local:'Rio de Janeiro', federacao:'IBJJF', formato:'gi', valor:'180', link:'', obs:'', inscritos:insc([0, 2, 8, 12], ['ouro','bronze','prata','ouro']).map(x => ({...x, status:'pago'}))};
+  salvar();
+}
+
+/* ============ Eventos ============ */
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, id = el.dataset.id;
+  if (act === 'fundo'){ if (e.target === el) fecharModal(); return; }
+  if (['papel','tema'].includes(act)) return; // tratados no change
+  if (!['grad-aptos','ver-sumidos','ver-equipe'].includes(act)) e.preventDefault();
+  const A = {
+    'fechar': fecharModal,
+    'novo-aluno': () => formAluno(),
+    'editar-aluno': () => formAluno(id),
+    'graduar': () => formGraduacao(id),
+    'excluir-aluno': async () => { if (await confirmar(`Excluir ${S.alunos[id].nome}? O histórico de presenças dele também sai dos relatórios.`)){ delete S.alunos[id]; Object.values(S.presencas).forEach(p => delete p.alunos[id]); salvar(); location.hash = '#/alunos'; toast('Aluno excluído'); } },
+    'del-hist': async () => { const a = S.alunos[id]; if (!(await confirmar('Apagar este registro do histórico? A faixa atual não muda.'))) return; a.historico = a.historico.filter(x => x.id !== el.dataset.hid); salvar(); render(); },
+    'toggle-pres': () => togglePres(id, el.dataset.key, el.dataset.data, el.dataset.t),
+    'limpar-chamada': async () => { if (await confirmar('Desmarcar todos desta aula?')){ delete S.presencas[`${el.dataset.data}_${el.dataset.t}`]; salvar(); listaChamada(el.dataset.data, el.dataset.t); } },
+    'add-outro': () => {
+      const t = turma(el.dataset.t);
+      const outros = alunosAtivos().filter(a => !(a.mods || []).includes(t.mod)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      abrirModal(`<h2>Adicionar aluno de outra turma</h2><div class="list" style="max-height:60vh;overflow:auto">${outros.length ? outros.map(a => `<button class="row" data-act="add-outro-ok" data-id="${a.id}" data-data="${el.dataset.data}" data-t="${el.dataset.t}"><span class="avatar" aria-hidden="true">${iniciais(a.nome)}</span><span class="grow name">${esc(a.nome)}</span></button>`).join('') : '<div class="empty">Todos os alunos ativos já aparecem nesta turma.</div>'}</div><div class="actions"><button class="btn ghost" data-act="fechar">Fechar</button></div>`);
+    },
+    'add-outro-ok': () => { const k = `${el.dataset.data}_${el.dataset.t}`; const p = S.presencas[k] ||= {data:el.dataset.data, turma:el.dataset.t, alunos:{}}; p.alunos[id] = true; salvar(); fecharModal(); listaChamada(el.dataset.data, el.dataset.t); },
+    'presTab': () => { ui.presTab = el.dataset.v; render(); },
+    'compTab': () => { ui.compTab = el.dataset.v; ui.compEdit = false; render(); },
+    'compEdit': () => { ui.compEdit = !ui.compEdit; render(); if (!ui.compEdit) toast('Alterações salvas'); },
+    'add-atleta': () => {
+      const lista = alunosAtivos().filter(a => !a.atleta).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      abrirModal(`<h2>Adicionar atleta à equipe</h2><div class="list" style="max-height:60vh;overflow:auto">${lista.length ? lista.map(a => `<button class="row" data-act="add-atleta-ok" data-id="${a.id}"><span class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span><span class="grow name">${esc(a.nome)}</span>${usaFaixa(a) ? beltSVG(a.faixa, a.graus, 70) : ''}</button>`).join('') : '<div class="empty">Todos os alunos ativos já estão na equipe.</div>'}</div><div class="actions"><button class="btn ghost" data-act="fechar">Fechar</button></div>`);
+    },
+    'add-atleta-ok': () => { S.alunos[id].atleta = true; salvar(); fecharModal(); render(); toast('Atleta adicionado à equipe'); },
+    'reg-peso': () => formPeso(id),
+    'edit-camp': () => formCampeonato(id),
+    'camp-add': () => window._camp.add(),
+    'camp-rem': () => window._camp.rem(Number(el.dataset.k)),
+    'camp-del': async () => { if (await confirmar('Excluir este campeonato e seus resultados?', 'Excluir')){ delete S.campeonatos[id]; salvar(); render(); toast('Campeonato excluído'); } },
+    'comp-add': () => { const arr = comp()[el.dataset.path]; arr.push(el.dataset.path === 'docs' ? {id:uid(), titulo:'', data:'', link:''} : {}); salvar(); render(); },
+    'comp-del': () => { comp()[el.dataset.path].splice(Number(el.dataset.i), 1); salvar(); render(); },
+    'add-golpe': () => { const g = comp().golpes; g.push({id:uid(), n:g.length + 1, nome:'Nova técnica', desc:'', video:'', proib:[false,false,false,false,false,false]}); salvar(); render(); },
+    'reset-comp': async () => { if (await confirmar('Voltar todas as tabelas e regras de competição ao padrão IBJJF? Seus campeonatos e atletas não são afetados.')){ S.config.competicao = compPadrao(); salvar(); render(); } },
+    'ver-equipe': () => { ui.maisTab = 'dados'; },
+    'sair': () => { auth.signOut(); },
+    'ir-cadastro': () => { estadoAuth = 'cadastro'; render(); },
+    'ir-login': () => { estadoAuth = 'login'; render(); },
+    'esqueci': () => {
+      const email = ($('#lEmail') || {}).value;
+      if (!email) return toast('Digite seu e-mail no campo acima e toque de novo em "Esqueci minha senha".');
+      auth.languageCode = 'pt'; auth.sendPasswordResetEmail(email).then(() => toast('Enviamos um e-mail para você criar uma nova senha.')).catch(e => toast(msgAuth(e)));
+    },
+    'ver-novos': () => { ui.fStatus = 'novo'; render(); },
+    'imp-forms': () => {
+      abrirModal(`<h2>Importar do Google Forms</h2>
+        <p class="small">Enquanto o app está em modo teste, a importação é feita copiando e colando. Na versão online ela será automática.</p>
+        <ol class="small" style="padding-left:20px">
+          <li>No computador, abra a planilha de respostas: <a href="${esc(S.config.formsPlanilha)}" target="_blank" rel="noopener">Ficha de Cadastro (Respostas)</a>.</li>
+          <li>Clique em qualquer célula e aperte <strong>Ctrl + A</strong> (no Mac, Cmd + A) para selecionar tudo.</li>
+          <li>Aperte <strong>Ctrl + C</strong> para copiar.</li>
+          <li>Clique na caixa abaixo e aperte <strong>Ctrl + V</strong> para colar.</li>
+          <li>Toque em <strong>Importar</strong>.</li>
+        </ol>
+        <textarea id="txtForms" style="min-height:160px" placeholder="Cole aqui a planilha inteira, com a linha de títulos"></textarea>
+        <p class="muted small">Quem já estiver cadastrado (mesmo nome e nascimento) é ignorado, então pode colar a planilha inteira sempre que quiser. Os novos entram como "Novo cadastro" para você revisar.</p>
+        <div class="actions"><button class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" data-act="imp-forms-ok">Importar</button></div>`);
+    },
+    'imp-forms-ok': () => {
+      const r = importarForms($('#txtForms').value);
+      if (r.erro) return toast(r.erro);
+      fecharModal(); ui.fStatus = r.novos ? 'novo' : ui.fStatus; render();
+      toast(`${r.novos} novo${r.novos === 1 ? '' : 's'} cadastro${r.novos === 1 ? '' : 's'} importado${r.novos === 1 ? '' : 's'}${r.dup ? `, ${r.dup} já existia${r.dup === 1 ? '' : 'm'}` : ''}`);
+    },
+    'gradTab': () => { ui.gradTab = el.dataset.v; render(); },
+    'maisTab': () => { ui.maisTab = el.dataset.v; render(); },
+    'grad-aptos': () => { ui.gradTab = 'alunos'; ui.gradFiltro = 'aptos'; },
+    'ver-sumidos': () => { ui.presTab = 'sumidos'; },
+    'add-turma': () => { S.config.turmas.push({id:uid(), mod:S.config.modalidades[0]?.id, dia:1, hora:'19:00'}); salvar(); render(); },
+    'del-turma': () => { S.config.turmas = S.config.turmas.filter(t => t.id !== id); salvar(); render(); },
+    'add-mod': () => { S.config.modalidades.push({id:uid(), nome:'Nova modalidade', cor:'#607080'}); salvar(); render(); },
+    'del-mod': async () => {
+      const uso = Object.values(S.alunos).filter(a => (a.mods || []).includes(id)).length;
+      if (!(await confirmar(uso ? `${uso} aluno(s) estão nesta modalidade. Remover mesmo assim? Os horários dela também saem da grade.` : 'Remover esta modalidade e seus horários?'))) return;
+      S.config.modalidades = S.config.modalidades.filter(m => m.id !== id);
+      S.config.turmas = S.config.turmas.filter(t => t.mod !== id); salvar(); render();
+    },
+    'add-plano': () => { S.config.planos.push({id:uid(), nome:'Novo plano', valor:0, meses:1, mods:[]}); salvar(); render(); },
+    'del-plano': async () => { if (await confirmar('Remover este plano?')){ S.config.planos.splice(Number(el.dataset.i), 1); salvar(); render(); } },
+    'add-custo': () => { S.config.custos.fixos.push({id:uid(), nome:'Novo custo', valor:0}); salvar(); render(); },
+    'del-custo': () => { S.config.custos.fixos.splice(Number(el.dataset.i), 1); salvar(); render(); },
+    'reset-faixas': async () => { if (await confirmar('Voltar faixas para o padrão IBJJF?')){ S.config.faixas = faixasPadrao(); salvar(); render(); } },
+    'exemplo': () => { carregarExemplo(); toast('Exemplos carregados'); location.hash = '#/inicio'; render(); },
+    'limpar': async () => { if (await confirmar('Apagar TODOS os alunos, presenças e ajustes deste navegador? Essa ação não pode ser desfeita.')){ if (ONLINE){ S.alunos = {}; S.presencas = {}; S.campeonatos = {}; salvar(); } else { localStorage.removeItem(KEY); carregar(); salvar(); } render(); toast('Dados apagados'); } },
+    'copiar-backup': () => {
+      const txt = JSON.stringify(S);
+      const ok = () => toast('Backup copiado. Cole num e-mail ou nota para guardar.');
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok).catch(() => mostrarBackup(txt)); else mostrarBackup(txt);
+    },
+    'importar': () => {
+      abrirModal(`<h2>Restaurar backup</h2><p class="muted small">Cole o texto do backup. Isso substitui os dados atuais deste navegador.</p><textarea id="txtImp" style="min-height:200px"></textarea><div class="actions"><button class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" data-act="importar-ok">Restaurar</button></div>`);
+    },
+    'importar-ok': () => {
+      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
+      catch(err){ toast('Texto de backup inválido. Copie o backup completo e tente de novo.'); }
+    }
+  };
+  if (A[act]) A[act]();
+});
+function mostrarBackup(txt){
+  abrirModal(`<h2>Backup</h2><p class="muted small">Selecione todo o texto abaixo e copie.</p><textarea style="min-height:220px" readonly>${esc(txt)}</textarea><div class="actions"><button class="btn primary" data-act="fechar">Fechar</button></div>`);
+}
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'busca'){ ui.busca = t.value; listaAlunos(); }
+  if (['simSexo','simAno','simPeso'].includes(t.id)){ ui.sim = {sexo:$('#simSexo').value, ano:$('#simAno').value, peso:$('#simPeso').value}; simAtualiza(); }
+  if (t.id === 'chamadaBusca'){ ui.chamadaBusca = t.value; const [, d, tid] = rota(); listaChamada(d, tid); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'fMod'){ ui.fMod = t.value; listaAlunos(); }
+  else if (t.id === 'fStatus'){ ui.fStatus = t.value; listaAlunos(); }
+  else if (t.id === 'presData'){ ui.presData = t.value || hoje(); render(); }
+  else if (t.id === 'rankPer'){ ui.rankPer = t.value; render(); }
+  else if (t.id === 'rankMod'){ ui.rankMod = t.value; render(); }
+  else if (t.id === 'gradFiltro'){ ui.gradFiltro = t.value; render(); }
+  else if (['gIdade','gFaixa','gFormato','gDiv'].includes(t.id)){ ui.golpe = {idade:$('#gIdade').value, faixa:$('#gFaixa').value, formato:$('#gFormato').value, divisao:$('#gDiv') ? $('#gDiv').value : 'adulto'}; render(); }
+  else if (t.dataset.golpe !== undefined){ comp().golpes[Number(t.dataset.golpe)].proib[Number(t.dataset.col)] = t.checked; salvar(); }
+  else if (t.dataset.act === 'papel'){ S.meta.papel = t.value; salvar(); render(); }
+  else if (t.dataset.act === 'tema'){ S.meta.tema = t.value; aplicarTema(); if (ONLINE) localStorage.setItem('safe_tema', t.value); else salvar(); }
+  else if (t.dataset.bind){
+    let v = t.value;
+    if (t.hasAttribute('data-num')) v = v === '' ? null : Number(v);
+    setPath(S.config, t.dataset.bind, v); salvar();
+    if (t.dataset.bind.startsWith('modalidades') || t.dataset.bind.startsWith('faixas')) render();
+  }
+  else if (t.dataset.bindTurma){
+    const tu = turma(t.dataset.bindTurma); tu[t.dataset.campo] = t.dataset.campo === 'dia' ? Number(t.value) : t.value; salvar(); render();
+  }
+  else if (t.dataset.modFaixa !== undefined){ S.config.modalidades[Number(t.dataset.modFaixa)].faixa = t.checked; salvar(); }
+  else if (t.hasAttribute('data-exigir-graus')){ S.config.exigirGraus = t.checked; salvar(); }
+  else if (t.dataset.planoMod !== undefined){
+    const p = S.config.planos[Number(t.dataset.planoMod)];
+    p.mods = t.checked ? [...new Set([...p.mods, t.value])] : p.mods.filter(m => m !== t.value); salvar();
+  }
+});
+function aplicarTema(){
+  const v = S.meta.tema || 'auto';
+  if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+}
+
+/* ============ Início ============ */
+carregar(); aplicarTema(); render();
+if (ONLINE) iniciarFirebase();
+</script>
+</body>
+</html>
