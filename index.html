@@ -382,7 +382,8 @@ function normalizar(){
   c.golpes.forEach(g => { const pr = g.proib || []; g.proib = [0,1,2,3,4,5].map(j => !!pr[j]); });
   if (c.kimonoKg == null) c.kimonoKg = cd.kimonoKg;
   c.pesos ||= {}; Object.keys(cd.pesos).forEach(k => { c.pesos[k] = c.pesos[k] ? arr(c.pesos[k]) : cd.pesos[k]; });
-  c.kids ||= {}; Object.keys(cd.kids).forEach(i => { const v = c.kids[i] || cd.kids[i]; c.kids[i] = [0,1,2,3,4,5,6,7,8].map(j => v[j] ?? null); });
+  // O Firebase transforma objetos com chaves numéricas (idades 4 a 15) em lista, com posições vazias: sempre reconstruir como objeto
+  { const kv = c.kids || {}, novo = {}; Object.keys(cd.kids).forEach(i => { const v = kv[i] || cd.kids[i]; novo[i] = [0,1,2,3,4,5,6,7,8].map(j => v[j] ?? null); }); c.kids = novo; }
   S.config.formsPlanilha ??= 'https://docs.google.com/spreadsheets/d/1d_AgrZCoJb6aPqm63c6Ukwm6Z9r9lmtR_Wemy78BGSE/edit';
   Object.entries(S.alunos).forEach(([id, a]) => { a.id = id; a.mods = arr(a.mods); a.historico = arr(a.historico); a.pesos = arr(a.pesos); if (a.rosto) a.rosto = arr(a.rosto).map(d => Array.isArray(d) ? d : Object.values(d)); });
   Object.values(S.campeonatos).forEach(x => { x.inscritos = arr(x.inscritos); });
@@ -392,7 +393,7 @@ function normalizar(){
   Object.values(S.alunos).forEach(a => { a.historicoStatus = arr(a.historicoStatus); });
   S.config.inicioFinanceiro ??= Object.keys(S.fin.mensalidades).sort()[0] || hoje().slice(0, 7);
   limparAntigos();
-  Object.values(S.fin.produtos).forEach(p => { p.estoque ||= {}; });
+  Object.values(S.fin.produtos).forEach(p => { const e = p.estoque || {}, novo = {}; Object.keys(e).forEach(k => { if (e[k] != null) novo[k] = e[k]; }); p.estoque = novo; });
   S.config.pix ??= '';
   S.config.facial ??= false;
   S.config.msgCobranca ??= 'Olá, {nome}! Tudo bem? Passando para lembrar da mensalidade de {mes} da SAFE, no valor de {valor}, com vencimento em {vencimento}. Chave Pix: {pix}. Se já pagou, desconsidere. Oss!';
