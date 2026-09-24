@@ -194,6 +194,10 @@ legend{font-family:var(--cond);font-weight:600;font-size:20px;margin-bottom:10px
 #conexao{position:fixed;left:0;right:0;top:0;z-index:70;padding:calc(8px + env(safe-area-inset-top,0px)) 14px 8px;font-size:14px;font-weight:600;text-align:center;display:none}
 #conexao.con-off{background:var(--red);color:#fff}
 #conexao.con-salvando{background:var(--warn-soft);color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--surface);padding:6px 10px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;min-height:34px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--bg)}
 .notice{background:var(--warn-soft);color:var(--ink);border-radius:8px;padding:12px 14px;font-size:14px;margin-bottom:16px}
 </style>
 </head>
@@ -407,7 +411,10 @@ function normalizar(){
   S.fin ||= {}; ['mensalidades','lancamentos','vendas','produtos'].forEach(k => { S.fin[k] ||= {}; });
   S.log ||= {}; S.lixeira ||= {};
   S.cres ||= {}; S.cres.exp ||= {}; S.cres.nps ||= {};
-  S.pedag ||= {}; S.pedag.boletins ||= {}; S.pedag.notas ||= {};
+  S.pedag ||= {}; ['boletins','notas','tecnicas','cerimonias','professores','comunicados'].forEach(k => { S.pedag[k] ||= {}; });
+  Object.values(S.pedag.comunicados).forEach(c => { c.enviados ||= {}; });
+  Object.values(S.pedag.cerimonias).forEach(c => { c.graduados ||= {}; });
+  S.config.criterioGrau ??= {kids:{meses:3, treinos:20}, branca:{meses:3, treinos:30}, adulto:{meses:6, treinos:40}};
   S.config.boletimEntrega ??= '2026-09-30';
   Object.values(S.alunos).forEach(a => { if (!a.canal){ const mm = String(a.obs || '').match(/Conheceu a SAFE por: ([^.]+)/); if (mm) a.canal = canalDe(mm[1]); } });
   Object.values(S.alunos).forEach(a => { a.historicoStatus = arr(a.historicoStatus); });
@@ -477,10 +484,10 @@ function render(){
   if (ONLINE && estadoAuth !== 'ok'){ $('.rail').style.display = 'none'; $('#main').innerHTML = telaAuth(); return; }
   $('.rail').style.display = '';
   const [v, ...args] = rota();
-  const sec = {aluno:'alunos', chamada:'presenca'}[v] || v;
+  const sec = {aluno:'alunos', chamada:'presenca', cerimonia:'graduacoes'}[v] || v;
   $('#nav').innerHTML = NAV.filter(([id]) => id !== 'financeiro' || isAdmin()).map(([id, nome, curto]) => `<a href="#/${id}" class="${sec === id ? 'on' : ''}" ${sec === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg><span class="lg">${nome}</span><span class="sm" aria-hidden="true">${curto || nome}</span></a>`).join('');
   $('#papel').textContent = (ONLINE && S.meta.nome ? S.meta.nome + ', ' : '') + (isAdmin() ? 'administrador' : 'professor');
-  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, competicao:viewCompeticao, crescimento:viewCrescimento, financeiro:viewFinanceiro, mais:viewMais};
+  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, cerimonia:viewCerimonia, competicao:viewCompeticao, crescimento:viewCrescimento, financeiro:viewFinanceiro, mais:viewMais};
   try { $('#main').innerHTML = (views[v] || viewInicio)(...args); }
   catch(err){ console.error(err); $('#main').innerHTML = `<div class="notice">Esta tela não abriu por um erro inesperado. Volte e tente de novo. Se continuar, envie esta mensagem ao suporte: ${esc(err && err.message)}</div>`; return; }
   const after = {alunos:listaAlunos, chamada:() => listaChamada(args[0], args[1]), competicao:simAtualiza}[v];
@@ -511,6 +518,7 @@ function viewInicio(){
       return `<a class="aula" href="#/chamada/${h}/${t.id}"><span class="hora">${t.hora}</span><span class="mod"><i class="dot" style="background:${m.cor}"></i>${esc(m.nome)}</span><span class="${n ? 'tag ok' : 'btn small primary'}">${n ? `${n} presente${n > 1 ? 's' : ''}` : 'Fazer chamada'}</span></a>`;
     }).join('') : `<div class="empty">Sem aulas na grade de hoje.</div>`}
   </div>
+  ${painelHoje()}
   <div class="numeros">
     <a class="num" href="#/alunos"><strong>${ativos.length}</strong><span>alunos ativos</span></a>
     <a class="num" href="#/graduacoes" data-act="grad-aptos"><strong>${aptos}</strong><span>aptos a trocar de faixa</span></a>
@@ -587,8 +595,8 @@ function viewAluno(id){
       ${S.config.facial ? `<button class="btn ghost" data-act="rosto" data-id="${id}">Rosto ${a.consBio ? `(${(a.rosto || []).length})` : '(sem autorização)'}</button>` : ''}
     </div>
   </div>
-  ${ehKidsMod(a) ? `<div class="tabs" role="tablist"><button role="tab" aria-selected="${ui.fichaTab !== 'boletim'}" class="${ui.fichaTab !== 'boletim' ? 'on' : ''}" data-act="fichaTab" data-v="dados">Dados</button><button role="tab" aria-selected="${ui.fichaTab === 'boletim'}" class="${ui.fichaTab === 'boletim' ? 'on' : ''}" data-act="fichaTab" data-v="boletim">Boletim</button></div>` : ''}
-  ${ehKidsMod(a) && ui.fichaTab === 'boletim' ? viewBoletimAluno(a) : `
+  ${usaFaixa(a) || ehKidsMod(a) ? `<div class="tabs" role="tablist">${[['dados','Dados'], ...(usaFaixa(a) ? [['tecnicas','Técnicas']] : []), ...(ehKidsMod(a) ? [['boletim','Boletim']] : [])].map(([v, t]) => `<button role="tab" aria-selected="${(ui.fichaTab || 'dados') === v}" class="${(ui.fichaTab || 'dados') === v ? 'on' : ''}" data-act="fichaTab" data-v="${v}">${t}</button>`).join('')}</div>` : ''}
+  ${ehKidsMod(a) && ui.fichaTab === 'boletim' ? viewBoletimAluno(a) : usaFaixa(a) && ui.fichaTab === 'tecnicas' ? viewTecnicasAluno(a) : `
   <div class="panel">
     <div class="statline">
       <div><strong>${pres.length}</strong><span>treinos no total</span></div>
@@ -600,6 +608,8 @@ function viewAluno(id){
   ${usaFaixa(a) ? `<div class="panel">
     <h3 style="margin-bottom:8px">Graduação</h3>
     <p style="margin:0 0 6px">${tagStatus(st)} <span class="muted small">${esc(st.texto)}</span></p>
+    ${statusGrau(a) ? `<p style="margin:0 0 6px">${statusGrau(a).apto ? '<span class="tag ok">Apto a grau</span>' : '<span class="tag">Grau</span>'} <span class="muted small">${esc(statusGrau(a).texto)}</span></p>` : ''}
+    <p style="margin:0 0 6px"><span class="tag">Técnica ${prontidao(a).pct}%</span> <span class="muted small">do currículo SBA em "sei fazer" ou acima</span></p>
     <p class="muted small" style="margin:0">Na faixa atual desde ${fmtBR(a.dataFaixa)} (${tempoTexto(mesesEntre(a.dataFaixa || a.dataMatricula, h))}). Idade IBJJF em ${new Date().getFullYear()}: ${idadeIBJJF(a.nascimento) ?? '—'} anos.</p>
     <h3 style="margin:18px 0 6px">Histórico</h3>
     ${hist.length ? `<ul class="timeline">${hist.map(x => `<li>${beltSVG(x.faixa, x.graus, 96)}<div class="grow" style="flex:1"><strong>${x.tipo === 'grau' ? `${x.graus}º grau` : `Faixa ${esc(faixa(x.faixa).nome)}`}</strong><div class="muted small">${fmtBR(x.data)}${x.prof ? `, por ${esc(x.prof)}` : ''}${x.obs ? `. ${esc(x.obs)}` : ''}</div></div><button class="btn small danger" data-act="del-hist" data-id="${id}" data-hid="${x.id}" aria-label="Apagar registro">Apagar</button></li>`).join('')}</ul>` : `<p class="muted small">Nenhuma graduação registrada ainda.</p>`}
@@ -894,6 +904,7 @@ function viewChamada(data, tid){
   return `<p><a href="#/presenca" class="muted small">Voltar para presença</a></p>
   <h1 style="display:flex;align-items:center;gap:10px"><i class="dot" style="background:${m.cor};width:14px;height:14px"></i>${esc(m.nome)}</h1>
   <p class="muted">${DIAS[parseD(data).getDay()]}, ${fmtBR(data)}, ${t.hora}</p>
+  <div class="panel" style="padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span><strong>Conteúdo da aula:</strong> <span class="muted">${esc(resumoConteudo(S.presencas[`${data}_${tid}`], t) || 'não registrado')}</span></span><button class="btn small ghost" data-act="conteudo" data-data="${data}" data-t="${tid}">${resumoConteudo(S.presencas[`${data}_${tid}`], t) ? 'Editar' : 'Registrar conteúdo'}</button></div>
   <div class="field" style="max-width:360px"><label for="profAula">Professor da aula</label><input type="text" id="profAula" list="dlProfs" value="${esc((S.presencas[`${data}_${tid}`] || {}).prof || '')}" placeholder="${esc(profPadrao() || 'Nome do professor')}" autocomplete="off"><datalist id="dlProfs">${nomesProfessores().map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
   <div class="sticky-count"><span><span class="big-count" id="nPres">0</span> <span class="muted">presentes</span></span>
     <span style="display:flex;gap:8px;flex-wrap:wrap">${S.config.facial ? '<label class="btn small primary">Chamada por foto<input type="file" accept="image/*" id="fotoTurma" hidden></label>' : ''}<button class="btn small ghost" data-act="add-outro" data-data="${data}" data-t="${tid}">Aluno de outra turma</button><button class="btn small ghost" data-act="limpar-chamada" data-data="${data}" data-t="${tid}">Desmarcar todos</button></span></div>
@@ -928,13 +939,17 @@ function togglePres(id, key, data, tid){
 
 /* ============ Graduações ============ */
 function viewGraduacoes(){
-  const tabs = [['alunos','Alunos'],['boletim','Boletim infantil'],['requisitos','Requisitos IBJJF']];
+  const tabs = [['alunos','Alunos'],['boletim','Boletim infantil'],['cerimonias','Cerimônias'],['curriculo','Currículo'],['comunicados','Comunicados kids'],['requisitos','Requisitos IBJJF']];
   let corpo;
   if (ui.gradTab === 'boletim'){ corpo = viewBoletim(); }
+  else if (ui.gradTab === 'cerimonias'){ corpo = viewCerimonias(); }
+  else if (ui.gradTab === 'curriculo'){ corpo = viewCurriculo(); }
+  else if (ui.gradTab === 'comunicados'){ corpo = viewComunicados(); }
   else if (ui.gradTab === 'alunos'){
-    const filtros = [['todos','Todos'],['aptos','Aptos a trocar de faixa'],['kids','Kids (até 15 anos)'],['adultos','16 anos ou mais']];
+    const filtros = [['todos','Todos'],['aptoGrau','Aptos a receber grau'],['aptos','Aptos a trocar de faixa'],['kids','Kids (até 15 anos)'],['adultos','16 anos ou mais']];
     let arr = ativosFaixa().map(a => ({a, st:statusGraduacao(a), idade:idadeIBJJF(a.nascimento)}));
     if (ui.gradFiltro === 'aptos') arr = arr.filter(x => ['apto','migrar'].includes(x.st.tipo));
+    if (ui.gradFiltro === 'aptoGrau') arr = arr.filter(x => (statusGrau(x.a) || {}).apto);
     if (ui.gradFiltro === 'kids') arr = arr.filter(x => x.idade != null && x.idade < 16);
     if (ui.gradFiltro === 'adultos') arr = arr.filter(x => x.idade != null && x.idade >= 16);
     const ordem = {apto:0, migrar:1, graus:2, tempo:3, idade:4, 'sem-dados':5, max:6};
@@ -943,7 +958,7 @@ function viewGraduacoes(){
     <div class="list">${arr.length ? arr.map(({a, st}) => `
       <a class="row" href="#/aluno/${a.id}">${faixaComEdu(a, 96)}
         <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>
-        <span class="meta">${tagStatus(st)} na faixa há ${tempoTexto(mesesEntre(a.dataFaixa || a.dataMatricula, hoje()))}, ${presEntre(a.id, a.dataFaixa || '0000', hoje())} treinos</span></span></a>`).join('') : `<div class="empty">Nenhum aluno neste filtro.</div>`}</div>`;
+        <span class="meta">${tagStatus(st)} ${tagGrau(statusGrau(a))} na faixa há ${tempoTexto(mesesEntre(a.dataFaixa || a.dataMatricula, hoje()))}, ${presEntre(a.id, a.dataFaixa || '0000', hoje())} treinos, técnica ${prontidao(a).pct}%</span><span class="meta" style="display:block">${esc((statusGrau(a) || {}).texto || '')}</span></span></a>`).join('') : `<div class="empty">Nenhum aluno neste filtro.</div>`}</div>`;
   } else {
     corpo = `<p class="muted small">Baseado no Sistema de Graduação da IBJJF. A idade conta como ano atual menos ano de nascimento. De 4 a 15 anos não há tempo mínimo por faixa; o tempo mínimo abaixo vale a partir dos 18 anos. Os valores podem ser ajustados em Ajustes.</p>
     <div class="list">${S.config.faixas.map(f => `<div class="row" style="cursor:default">${beltSVG(f.id, 0, 110)}<span class="grow"><span class="name" style="display:block">${esc(f.nome)}</span><span class="meta">${f.idadeMax ? `${f.idadeMin} a ${f.idadeMax} anos` : f.idadeMin ? `A partir de ${f.idadeMin} anos` : 'Qualquer idade'}${f.tempoMinMeses ? `, mínimo ${tempoTexto(f.tempoMinMeses)} nesta faixa` : ''}, até ${f.maxGraus} graus</span></span></div>`).join('')}</div>`;
@@ -954,7 +969,7 @@ function viewGraduacoes(){
 
 /* ============ Ajustes ============ */
 function viewMais(){
-  const tabs = [['grade','Grade de horários'],['modalidades','Modalidades'],...(isAdmin() ? [['planos','Planos e custos']] : []),['faixas','Faixas'],['dados','Dados e acesso']];
+  const tabs = [['grade','Grade de horários'],['modalidades','Modalidades'],...(isAdmin() ? [['planos','Planos e custos']] : []),['faixas','Faixas'],['professores','Professores SBA'],['dados','Dados e acesso']];
   if (!tabs.find(t => t[0] === ui.maisTab)) ui.maisTab = 'grade';
   let c = '';
   if (ui.maisTab === 'grade'){
@@ -997,8 +1012,12 @@ function viewMais(){
     <div class="field" style="max-width:420px"><label for="cfPix">Chave Pix da academia</label><input type="text" id="cfPix" value="${esc(S.config.pix)}" data-bind="pix" placeholder="CNPJ, e-mail, telefone ou chave aleatória"></div>
     <div class="field"><label for="cfMsg">Mensagem de cobrança</label><textarea id="cfMsg" data-bind="msgCobranca">${esc(S.config.msgCobranca)}</textarea></div>
     <p class="muted small">O app troca automaticamente {nome}, {mes}, {valor}, {vencimento} e {pix} pelos dados de cada aluno.</p>`;
+  } else if (ui.maisTab === 'professores'){
+    c = viewProfessoresSBA();
   } else if (ui.maisTab === 'faixas'){
     c = `<p class="muted small">Valores padrão do Sistema de Graduação IBJJF. Altere se a regra mudar ou se a academia usar critério próprio.</p>
+    <div class="panel"><h3 style="margin-bottom:6px">Critério para grau (treinos e tempo)</h3><p class="muted small">O aluno fica apto ao próximo grau quando cumprir os dois: meses desde o último grau (ou troca de faixa) e treinos nesse período. Faixa preta segue a regra da IBJJF: 3 anos entre o 1º e o 3º grau, 5 anos do 4º ao 6º.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Grupo</th><th>Meses</th><th>Treinos</th></tr></thead><tbody>${[['kids','Kids (até 15 anos)'],['branca','Adultos, faixa branca'],['adulto','Adultos, azul a marrom']].map(([k, t]) => `<tr><td>${t}</td><td><input type="number" min="0" value="${S.config.criterioGrau[k].meses}" data-bind="criterioGrau.${k}.meses" data-num aria-label="Meses ${t}" style="max-width:90px"></td><td><input type="number" min="0" value="${S.config.criterioGrau[k].treinos}" data-bind="criterioGrau.${k}.treinos" data-num aria-label="Treinos ${t}" style="max-width:90px"></td></tr>`).join('')}</tbody></table></div></div>
     <label class="check" style="margin-bottom:14px"><input type="checkbox" data-exigir-graus ${S.config.exigirGraus !== false ? 'checked' : ''}>Critério da academia: só indicar troca de faixa quando o aluno tiver todos os graus</label>
     <label class="check" style="margin-bottom:14px"><input type="checkbox" data-exigir-edu ${S.config.exigirEdu !== false ? 'checked' : ''}>Infantil (até 15 anos): exigir também os 4 graus educacionais da SBA</label>
     <div class="tbl-wrap"><table><thead><tr><th>Faixa</th><th>Idade mín.</th><th>Idade máx.</th><th>Tempo mín. (meses)</th><th>Máx. graus</th></tr></thead><tbody>
@@ -1660,11 +1679,11 @@ function barrasH(itens, fmt = fmtR){
 }
 function viewFinanceiro(){
   if (!isAdmin()) return `<div class="empty">O financeiro é visível apenas para administradores.</div>`;
-  const tabs = [['resumo','Resumo'],['aberto','Em atraso'],['mensalidades','Mensalidades'],['lancamentos','Receitas e custos'],['produtos','Produtos e vendas']];
+  const tabs = [['resumo','Resumo'],['aberto','Em atraso'],['mensalidades','Mensalidades'],['lancamentos','Receitas e custos'],['produtos','Produtos e vendas'],['relatorio','Relatório do mês']];
   const m = ui.finMes;
   const seletor = `<div class="filters" style="align-items:flex-end"><div class="field" style="max-width:220px;margin:0"><label for="finMes">Mês</label><input type="month" id="finMes" value="${m}"></div>
     <span style="display:flex;gap:6px;flex:0"><button class="btn small ghost" data-act="finMesNav" data-n="-1" aria-label="Mês anterior">‹</button><button class="btn small ghost" data-act="finMesNav" data-n="1" aria-label="Próximo mês">›</button></span></div>`;
-  const corpo = {resumo:finResumo, aberto:finAberto, mensalidades:finMensalidades, lancamentos:finLancamentos, produtos:finProdutos}[ui.finTab](m);
+  const corpo = {resumo:finResumo, aberto:finAberto, mensalidades:finMensalidades, lancamentos:finLancamentos, produtos:finProdutos, relatorio:finRelatorio}[ui.finTab](m);
   return `<div class="head"><h1>Financeiro</h1></div>
   <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.finTab === id}" class="${ui.finTab === id ? 'on' : ''}" data-act="finTab" data-v="${id}">${t}</button>`).join('')}</div>${ui.finTab === 'aberto' ? '' : seletor}${corpo}`;
 }
@@ -2391,6 +2410,270 @@ function importarNps(txt){
   salvar(); return {n};
 }
 
+/* ============ Pacote 3: jiu-jitsu (SBA) ============ */
+const CURRICULO = {"adulto": [{"id": "a01", "nome": "GPCI: gerenciamento progressivo de comportamento inconveniente", "itens": [{"id": "a01-01", "nome": "Nível 1 - Presença física. Posicionamento superior. Força de presença", "pag": ""}, {"id": "a01-02", "nome": "Nível 2 - Verbalização 1. Diplomacia", "pag": ""}, {"id": "a01-03", "nome": "Nível 3 - Verbalização 2. Uso da força da Lei como ameaça", "pag": ""}, {"id": "a01-04", "nome": "Nível 4 - Controle de contato. Técnicas de mãos livres", "pag": ""}, {"id": "a01-05", "nome": "Nível 5 - Técnicas de submissão.", "pag": ""}, {"id": "a01-06", "nome": "Nível 6 - Táticas defensivas não letais", "pag": ""}, {"id": "a01-07", "nome": "Nível 7 - Força Letal", "pag": ""}]}, {"id": "a02", "nome": "Fundamentos", "itens": [{"id": "a02-01", "nome": "Base parado", "pag": "8"}, {"id": "a02-02", "nome": "Cair em base", "pag": "8"}, {"id": "a02-03", "nome": "Base em deslocamento", "pag": "8"}, {"id": "a02-04", "nome": "Amortecimentos de queda deitado", "pag": "8"}, {"id": "a02-05", "nome": "Amortecimentos de queda sentado", "pag": "8"}, {"id": "a02-06", "nome": "Amortecimentos de queda de joelhos", "pag": "8"}, {"id": "a02-07", "nome": "Amortecimentos de queda em pé a meia altura", "pag": "8"}, {"id": "a02-08", "nome": "Amortecimentos de queda em pé", "pag": "8"}, {"id": "a02-09", "nome": "Rolamento para frente", "pag": "8"}, {"id": "a02-10", "nome": "Rolamento para trás", "pag": "8"}, {"id": "a02-11", "nome": "Levantada técnica", "pag": "8"}, {"id": "a02-12", "nome": "Fuga de quadril", "pag": "8"}, {"id": "a02-13", "nome": "Barrigada", "pag": "8"}, {"id": "a02-14", "nome": "Barrigada + fuga de quadril", "pag": "8"}, {"id": "a02-15", "nome": "Barrigada+ fuga de quadril + mergulho", "pag": "8"}]}, {"id": "a03", "nome": "Autodefesa", "itens": [{"id": "a03-01", "nome": "Enforcamento: saída de enforcamento escapando a cabeça buscando a distância para o pisão (escapada).", "pag": "9"}, {"id": "a03-02", "nome": "Enforcamento: saída de enforcamento com uma das mãos no cotovelo do agressor, avançar o braço oposto por entre os braços do oponente para abraçar a cabeça e projetar de quadril", "pag": "9"}, {"id": "a03-03", "nome": "Enforcamento: mãos nos cotovelos do agressor, aplicar o balão", "pag": "9"}, {"id": "a03-04", "nome": "Pegadas no pano: com uma das mãos na gola", "pag": "9"}, {"id": "a03-05", "nome": "Pegadas no pano: com as duas mãos nas golas", "pag": "9"}, {"id": "a03-06", "nome": "Pegadas no pano: pegada no ombro", "pag": "9"}, {"id": "a03-07", "nome": "Agarrões: por cima dos braços", "pag": "9"}, {"id": "a03-08", "nome": "Agarrões: por baixo dos braços", "pag": "9"}, {"id": "a03-09", "nome": "Pegada com uma mão (gola alta, cabelo, pescoço): dominar o braço com as duas mãos segurando o punho do agressor, um passo para expor o braço puxando, outro passo em base para encaixar a chave de braço", "pag": "9"}, {"id": "a03-10", "nome": "Gravatas: com projeção do agressor ao solo com a alavanca do quadril", "pag": "10"}, {"id": "a03-11", "nome": "Gravatas: com defesa de soco dominando o braço e o punho do agressor, saindo para as costas para a chave de braço", "pag": "10"}, {"id": "a03-12", "nome": "Gravatas: com a quebra da postura do agressor, com uma das mãos no nariz, empurrando o quadril para girar para a guilhotina", "pag": "10"}, {"id": "a03-13", "nome": "Gravatas: perdendo a postura acompanhar a força do agressor abraçar o quadril com uma das mãos encaixar a mão oposta na perna para girar ao solo trazendo o agressor consigo, caindo na montada lateral", "pag": "10"}, {"id": "a03-14", "nome": "Ataque no pescoço pelas costas: parado", "pag": "10"}, {"id": "a03-15", "nome": "Ataque no pescoço pelas costas: puxando", "pag": "10"}, {"id": "a03-16", "nome": "Agarrão por cima dos braços: base com os braços para frente e o quadril para trás, criando espaço dar um passo para trás do agressor mantendo a base e os pés paralelos, colocar as mãos atrás dos joelhos e suspender o agressor com a alavanca do quadril", "pag": "10"}, {"id": "a03-17", "nome": "Agarrão por baixo dos braços: base curvando o tronco para frente, colocando as palmas das mãos no chão. Com uma das mãos agarrar o calcanhar do agressor ao mesmo tempo que senta com o quadril em seu joelho", "pag": "10"}, {"id": "a03-18", "nome": "Defesa de tapa ou soco lateral: avançar em base bloqueando com os antebraços por cima dos braços do agressor, clinch, queda de quadril ou queda de gancho.", "pag": "10"}, {"id": "a03-19", "nome": "Defesa de soco reto: com as mãos para cima e os antebraços na vertical, esquivar o soco girando o tronco no seu eixo utilizando um dos antebraços, sem perder a base encurtar a distância para o clinch, queda", "pag": "11"}, {"id": "a03-20", "nome": "Defesa de pisão frontal: esquivar o pisão utilizando um dos antebraços girando o tronco no seu eixo contra golpeando com a cotovelada", "pag": "11"}, {"id": "a03-21", "nome": "Defesa de pisão frontal: esquivar o pisão utilizando um dos antebraços girando o tronco no seu eixo dominando a perna do oponente desequilibrando para leva-lo ao solo", "pag": "11"}, {"id": "a03-22", "nome": "Chute lateral: avançar em base abraçando a perna do agressor com um dos braços, protegendo o rosto com a mão oposta desequilibrar o agressor com o peso do corpo ou varrendo com a perna. Aplicar a chave de pé", "pag": "11"}, {"id": "a03-23", "nome": "Paulada: perto", "pag": "11"}, {"id": "a03-24", "nome": "Paulada: longe", "pag": "11"}, {"id": "a03-25", "nome": "Defesa de guilhotina em pé: apoiando uma das mãos na perna e abraçando o ombro do agressor, para acompanhar a puxada da guilhotina, aliviando a pressão, caindo ao lado oposto a guilhotina, para desequilibrar o oponente levando ao chão, livrar o pescoço e finalizar com kata-gatame", "pag": "11"}, {"id": "a03-26", "nome": "Defesa de guilhotina em pé: apoiando as duas mãos em um dos joelhos do agressor dar um passo na diagonal pra fora colocando o pé ao lado do pé do oponente e sentar forçando a cabeça para cima projetando o agressor de cabeça ao solo", "pag": "11"}, {"id": "a03-27", "nome": "Defesa de guilhotina em pé: guilhotina de dentro da guarda: abraçar as costas do oponente pressionando a sua mandíbula com o ombro. Enfiar a cabeça para dentro da guilhotina, para aliviar a pressão. estender as pernas e elevando o 12 quadril empurrar o quadril do oponente para baixo deslizando para a sua lateral oposta ao golpe ainda com as pernas presas. Escorregar até livrar as pernas aumentar a pressão do ombro para livrar a cabeça e finalizar com kata-gatame.", "pag": "11"}]}, {"id": "a04", "nome": "Técnicas de projeção", "itens": [{"id": "a04-01", "nome": "Osoto-Gari", "pag": "12"}, {"id": "a04-02", "nome": "Koshi-guruma", "pag": "12"}, {"id": "a04-03", "nome": "De-ashi-Harai", "pag": "12"}, {"id": "a04-04", "nome": "Ouchi-gari", "pag": "13"}]}, {"id": "a05", "nome": "Gangorra I", "itens": [{"id": "a05-01", "nome": "Posicionamento de defesa no chão", "pag": "14"}, {"id": "a05-02", "nome": "Usar as pernas corretamente", "pag": "14"}, {"id": "a05-03", "nome": "Saber se movimentar utilizando a gangorra e saber levantar tecnicamente", "pag": "14"}, {"id": "a05-04", "nome": "Fundamentos de recuperação de guarda", "pag": "15"}, {"id": "a05-05", "nome": "Proteger a cabeça cruzando as pernas", "pag": "15"}, {"id": "a05-06", "nome": "Balão", "pag": "15"}, {"id": "a05-07", "nome": "Manutenção e domínio da montada", "pag": "15"}, {"id": "a05-08", "nome": "Chave de braço", "pag": "15"}, {"id": "a05-09", "nome": "Pegar as costas derrubando para frente e para trás", "pag": "15"}, {"id": "a05-10", "nome": "Manutenção e domínio das costas", "pag": "15"}, {"id": "a05-11", "nome": "Mata leão", "pag": "15"}, {"id": "a05-12", "nome": "Puxada para costas pelo braço", "pag": "15"}, {"id": "a05-13", "nome": "Raspada agarrando os calcanhares", "pag": "15"}]}, {"id": "a06", "nome": "Gangorra II", "itens": [{"id": "a06-01", "nome": "Manter os níveis de segurança na guarda (estágios 1, 2 e 3 – 3, 2 e 1)", "pag": "15"}, {"id": "a06-02", "nome": "Estratégias com o oponente apoiando as mãos no chão", "pag": "15"}, {"id": "a06-03", "nome": "Estratégias com o oponente apoiando os braços e as mãos no corpo", "pag": "15"}]}, {"id": "a07", "nome": "Escapadas", "itens": [{"id": "a07-01", "nome": "Saídas de montada 1", "pag": "16"}, {"id": "a07-02", "nome": "Saídas de montada 2", "pag": "16"}, {"id": "a07-03", "nome": "Saídas de montada 3", "pag": "16"}, {"id": "a07-04", "nome": "Saídas de montada 4", "pag": "16"}, {"id": "a07-05", "nome": "Saídas de 100kg 1", "pag": "16"}, {"id": "a07-06", "nome": "Saídas de 100kg 2", "pag": "16"}, {"id": "a07-07", "nome": "Saídas de 100kg 3", "pag": "16"}, {"id": "a07-08", "nome": "Saídas de pegada pelas costas 1", "pag": "16"}, {"id": "a07-09", "nome": "Saídas de pegada pelas costas 2", "pag": "17"}, {"id": "a07-10", "nome": "Saídas de pegada pelas costas 3", "pag": "17"}, {"id": "a07-11", "nome": "Saída norte-sul 1 e 2", "pag": "17"}, {"id": "a07-12", "nome": "Defesas de gravata no chão 1", "pag": "17"}, {"id": "a07-13", "nome": "Defesas de gravata no chão 2", "pag": "17"}, {"id": "a07-14", "nome": "Defesas de gravata no chão 3", "pag": "17"}, {"id": "a07-15", "nome": "Defesas de gravata no chão 4", "pag": "17"}]}, {"id": "a08", "nome": "Passagem de Guarda", "itens": [{"id": "a08-01", "nome": "Passagens de guarda progressiva (utilizando pisão e mãos) 1", "pag": "17"}, {"id": "a08-02", "nome": "Passagens de guarda progressiva (utilizando pisão e mãos) 2", "pag": "17"}, {"id": "a08-03", "nome": "Passagens de guarda progressiva (utilizando pisão e mãos) 3", "pag": "17"}, {"id": "a08-04", "nome": "Passagens de guarda progressiva (utilizando pisão e mãos) 4", "pag": "18"}, {"id": "a08-05", "nome": "Passagens de guarda progressiva (com pegada próximo à boca da calça) 1", "pag": "18"}, {"id": "a08-06", "nome": "Passagens de guarda progressiva (com pegada próximo à boca da calça) 2", "pag": "18"}, {"id": "a08-07", "nome": "Passagens de guarda progressiva (com pegada próximo à boca da calça) 3", "pag": "18"}, {"id": "a08-08", "nome": "Passagens de guarda progressiva (Base de guerrilha) 1", "pag": "18"}, {"id": "a08-09", "nome": "Passagens de guarda progressiva (Base de guerrilha) 2", "pag": "18"}, {"id": "a08-10", "nome": "Passagens de guarda progressiva (Base de guerrilha) 3", "pag": "18"}, {"id": "a08-11", "nome": "Passagens de guarda progressiva (Base de guerrilha) 4", "pag": "18"}, {"id": "a08-12", "nome": "Passagens de guarda progressiva (Base de guerrilha) 5", "pag": "18"}]}, {"id": "a09", "nome": "Guarda Fechada", "itens": [{"id": "a09-01", "nome": "Oponente de joelhos 1", "pag": "19"}, {"id": "a09-02", "nome": "Oponente de joelhos 2", "pag": "19"}, {"id": "a09-03", "nome": "Oponente de joelhos 3", "pag": "19"}, {"id": "a09-04", "nome": "Oponente de joelhos 4", "pag": "19"}, {"id": "a09-05", "nome": "Oponente de joelhos 5", "pag": "19"}, {"id": "a09-06", "nome": "Oponente de joelhos 6", "pag": "19"}, {"id": "a09-07", "nome": "Oponente de joelhos 7", "pag": "19"}, {"id": "a09-08", "nome": "Oponente de joelhos 8", "pag": "19"}, {"id": "a09-09", "nome": "Oponente de joelhos 9", "pag": "19"}, {"id": "a09-10", "nome": "Oponente de joelhos 10", "pag": "19"}, {"id": "a09-11", "nome": "Oponente ficando em pé 11", "pag": "20"}, {"id": "a09-12", "nome": "Oponente ficando em pé 12", "pag": "20"}, {"id": "a09-13", "nome": "Oponente em pé 13", "pag": "20"}, {"id": "a09-14", "nome": "Oponente em pé 14", "pag": "20"}, {"id": "a09-15", "nome": "Oponente em pé 15", "pag": "20"}, {"id": "a09-16", "nome": "Oponente em pé 16", "pag": "20"}, {"id": "a09-17", "nome": "Oponente em pé 17", "pag": "20"}, {"id": "a09-18", "nome": "Oponente em pé 18", "pag": "20"}, {"id": "a09-19", "nome": "Oponente em pé 19", "pag": "20"}, {"id": "a09-20", "nome": "Oponente em pé 20", "pag": "20"}, {"id": "a09-21", "nome": "Oponente em pé 21", "pag": "20"}]}, {"id": "a10", "nome": "Guarda pé na virilha", "itens": [{"id": "a10-01", "nome": "Oponente de joelhos 1", "pag": "20"}, {"id": "a10-02", "nome": "Oponente de joelhos 2", "pag": "20"}, {"id": "a10-03", "nome": "Oponente de joelhos 3", "pag": "20"}, {"id": "a10-04", "nome": "Oponente de joelhos 4", "pag": "20"}, {"id": "a10-05", "nome": "Oponente de joelhos 5", "pag": "20"}, {"id": "a10-06", "nome": "Oponente levantando uma das pernas 6", "pag": "20"}, {"id": "a10-07", "nome": "Oponente em pé 7", "pag": "20"}, {"id": "a10-08", "nome": "Oponente em pé 8", "pag": "21"}, {"id": "a10-09", "nome": "Oponente em pé 9", "pag": "21"}, {"id": "a10-10", "nome": "Oponente em pé 10", "pag": "21"}, {"id": "a10-11", "nome": "Oponente em pé 11", "pag": "21"}, {"id": "a10-12", "nome": "Oponente em pé 12", "pag": "21"}, {"id": "a10-13", "nome": "Oponente em pé 13", "pag": "21"}, {"id": "a10-14", "nome": "Oponente em pé 14", "pag": "21"}, {"id": "a10-15", "nome": "Oponente em pé 15", "pag": "21"}, {"id": "a10-16", "nome": "Oponente em pé 16", "pag": "21"}]}, {"id": "a11", "nome": "Guarda gancho por fora", "itens": [{"id": "a11-01", "nome": "Balão com gancho por fora", "pag": ""}, {"id": "a11-02", "nome": "Desequilíbrio lateral fazendo o oponente cair sentado (ficando por cima ou indo para as costas)", "pag": ""}, {"id": "a11-03", "nome": "Ida para as costas", "pag": ""}]}, {"id": "a12", "nome": "Guarda sentada", "itens": [{"id": "a12-01", "nome": "Raspada para frente com o pé no joelho e dominando a manga", "pag": "21"}, {"id": "a12-02", "nome": "Levantar tecnicamente com a perna do oponente quando o mesmo passa por cima da perna e derruba-lo", "pag": "21"}]}, {"id": "a13", "nome": "Guarda borboleta", "itens": [{"id": "a13-01", "nome": "Raspar de tesoura empurrando um dos joelhos", "pag": "22"}, {"id": "a13-02", "nome": "Omoplata", "pag": "22"}, {"id": "a13-03", "nome": "Triangulo", "pag": "22"}]}, {"id": "a14", "nome": "Guarda de ganchos", "itens": [{"id": "a14-01", "nome": "Raspada de gancho dominando um dos braços.", "pag": ""}]}, {"id": "a15", "nome": "Guarda X", "itens": [{"id": "a15-01", "nome": "Raspar o oponente para trás", "pag": ""}, {"id": "a15-02", "nome": "Levantar com a perna do oponente e derruba-lo", "pag": ""}, {"id": "a15-03", "nome": "Ir para as costas", "pag": ""}]}, {"id": "a16", "nome": "Guarda aranha", "itens": [{"id": "a16-01", "nome": "Triangulo", "pag": "23"}, {"id": "a16-02", "nome": "Omoplata", "pag": "23"}, {"id": "a16-03", "nome": "Transitar para guarda laço", "pag": "23"}]}, {"id": "a17", "nome": "Guarda laço", "itens": [{"id": "a17-01", "nome": "Triângulo", "pag": "23"}, {"id": "a17-02", "nome": "Raspas para o lado abrindo a perna quando o adversário chega do lado", "pag": "23"}]}, {"id": "a18", "nome": "Meia guarda por baixo", "itens": [{"id": "a18-01", "nome": "Repor a guarda", "pag": "23"}, {"id": "a18-02", "nome": "Inverter com a barrigada", "pag": "24"}, {"id": "a18-03", "nome": "Transitar para meia guarda de escudos", "pag": "24"}, {"id": "a18-04", "nome": "Transitar para meia guarda profunda", "pag": "24"}, {"id": "a18-05", "nome": "Raspada da cadeirinha", "pag": "25"}, {"id": "a18-06", "nome": "Raspada girando para dentro", "pag": "25"}, {"id": "a18-07", "nome": "Raspada girando para fora", "pag": "25"}, {"id": "a18-08", "nome": "Pegada de costas", "pag": "25"}]}, {"id": "a19", "nome": "Meia guarda por cima", "itens": [{"id": "a19-01", "nome": "Passagem com o gancho utilizando um dos pés indo direto para a montada ou cruzando o joelho para o 100 kg", "pag": "25"}, {"id": "a19-02", "nome": "Passagem trocando a base e livrando o joelho para a montada com o pé preso", "pag": "25"}, {"id": "a19-03", "nome": "Passagem trocando a base par livrar o joelho", "pag": "25"}, {"id": "a19-04", "nome": "Finalizar chave americana no braço que esta esgrimado", "pag": "25"}, {"id": "a19-05", "nome": "Abraçar as duas pernas na altura da coxa, amassar com o peito e escapar as pernas para traz,", "pag": "25"}, {"id": "a19-06", "nome": "Ficar em pé e cruzar o joelho dominado calça e gola até chegar no 100 kg", "pag": "25"}, {"id": "a19-07", "nome": "Finalizar com americana no pé", "pag": "25"}, {"id": "a19-08", "nome": "Inverter o quadril e as pernas do adversário para o lado oposto (torto)", "pag": "26"}, {"id": "a19-09", "nome": "Conquistar a esgrima novamente a seu favor", "pag": "26"}, {"id": "a19-10", "nome": "Finalizar de Kimura", "pag": "26"}, {"id": "a19-11", "nome": "Finalizar de mão de vaca", "pag": "26"}, {"id": "a19-12", "nome": "Migrar para a meia invertida, passando a perna e o quadril para o outro lado do adversário", "pag": "26"}]}, {"id": "a20", "nome": "4 apoios", "itens": [{"id": "a20-01", "nome": "Posição e distribuição de peso corretos (quadril na altura da nuca do oponente e pernas estendidas)", "pag": "26"}, {"id": "a20-02", "nome": "Movimentação para a lateral (distribuir o peso corretamente, técnica para botar os ganchos, relógio e crucifixo).", "pag": "26"}, {"id": "a20-03", "nome": "Movimentação para as costas (distribuição de peso correta, quadril em cima da lombar do oponente).", "pag": "26"}, {"id": "a20-04", "nome": "Posicionamento correto (corpo em forma de diamante, sentado nos calcanhares e os cotovelos por dentro das pernas).", "pag": "26"}, {"id": "a20-05", "nome": "Dominar o braço e inverter levantado a perna do lado contrário e sentando para trás.", "pag": "27"}, {"id": "a20-06", "nome": "Inverter dominando a perna do oponente", "pag": "27"}, {"id": "a20-07", "nome": "Inverter dando o rolamento no mesmo eixo quando o oponente gira para as costas.", "pag": "27"}]}, {"id": "a21", "nome": "100kg + joelho na barriga", "itens": [{"id": "a21-01", "nome": "100kg 1", "pag": "27"}, {"id": "a21-02", "nome": "100kg 2", "pag": "27"}, {"id": "a21-03", "nome": "100kg 3", "pag": "27"}, {"id": "a21-04", "nome": "100kg 4", "pag": "27"}, {"id": "a21-05", "nome": "Joelho na barriga – do 100kg 1", "pag": "27"}]}, {"id": "a22", "nome": "Finalizações", "itens": [{"id": "a22-01", "nome": "Guarda fechada: Estrangulamento mão de faca", "pag": "30"}, {"id": "a22-02", "nome": "Guarda fechada: Estrangulamento mão de onça", "pag": "30"}, {"id": "a22-03", "nome": "Guarda fechada: Chave de braço escalando as pernas", "pag": "30"}, {"id": "a22-04", "nome": "Guarda fechada: Kimura", "pag": "30"}, {"id": "a22-05", "nome": "Guarda fechada: Chave de braço invertida", "pag": "30"}, {"id": "a22-06", "nome": "Guarda fechada: Omoplata", "pag": "30"}, {"id": "a22-07", "nome": "Guarda fechada: Triângulo", "pag": "30"}, {"id": "a22-08", "nome": "Guarda fechada: Mão de vaca", "pag": "30"}, {"id": "a22-09", "nome": "Guarda fechada: Guilhotina", "pag": "30"}, {"id": "a22-10", "nome": "Guarda aberta: Chave de braço prendendo com os joelhos", "pag": "30"}, {"id": "a22-11", "nome": "Guarda aberta: Omoplata -triângulo- gola rodada", "pag": "30"}, {"id": "a22-12", "nome": "Guarda aberta: Chave de pé.", "pag": "31"}, {"id": "a22-13", "nome": "Guarda aberta: Chave joelho", "pag": "31"}, {"id": "a22-14", "nome": "Guarda aberta: Pegar as costas a partir do gancho por fora", "pag": "31"}, {"id": "a22-15", "nome": "Montada: Estrangulamento mão de faca", "pag": "31"}, {"id": "a22-16", "nome": "Montada: Estrangulamento mão de onça", "pag": "31"}, {"id": "a22-17", "nome": "Montada: Estrangulamento punhos invertidos (dedão pra dentro da gola)", "pag": "31"}, {"id": "a22-18", "nome": "Montada: Chave de braço tradicional", "pag": "31"}, {"id": "a22-19", "nome": "Montada: Chave de braço invertida", "pag": "31"}, {"id": "a22-20", "nome": "Montada: Americana", "pag": "31"}, {"id": "a22-21", "nome": "Montada: Guilhotina", "pag": "31"}, {"id": "a22-22", "nome": "Montada: Ezequiel", "pag": "31"}, {"id": "a22-23", "nome": "Montada: Estrangulamento com o oponente virando de lado, na montada lateral", "pag": "31"}, {"id": "a22-24", "nome": "100kg: Americana", "pag": "31"}, {"id": "a22-25", "nome": "100kg: Kimura", "pag": "31"}, {"id": "a22-26", "nome": "100kg: Chave de braço rodando por cima da cabeça", "pag": "31"}, {"id": "a22-27", "nome": "100kg: Estrangulamento com a mão por baixo da axila e mão na gola", "pag": "31"}, {"id": "a22-28", "nome": "100kg: Kata-gatame", "pag": "31"}, {"id": "a22-29", "nome": "Joelho na barriga: Estrangulamento tradicional mão de faca / mão de onça", "pag": "32"}, {"id": "a22-30", "nome": "Joelho na barriga: Estrangulamento baseball choke", "pag": "32"}, {"id": "a22-31", "nome": "Joelho na barriga: Chave de braço do mesmo lado", "pag": "32"}, {"id": "a22-32", "nome": "Joelho na barriga: Chave de braço rodando pela cabeça", "pag": "32"}, {"id": "a22-33", "nome": "Joelho na barriga: Kimura", "pag": "32"}, {"id": "a22-34", "nome": "4 apoios por cima: Gola rodada", "pag": "32"}, {"id": "a22-35", "nome": "4 apoios por cima: Relógio", "pag": "32"}, {"id": "a22-36", "nome": "4 apoios por cima: Crucifixo/ estrangulamento parado ou dando rolamento", "pag": "32"}, {"id": "a22-37", "nome": "4 apoios por cima: Crucifixo /chave de braço parado ou dando rolamento", "pag": "32"}, {"id": "a22-38", "nome": "4 apoios por cima: Colocar os ganchos e estrangular", "pag": "32"}]}], "kids": [{"id": "k1", "nome": "Etapa 1: base", "itens": [{"id": "k1-01", "nome": "Verbalização 1 (GPCI)", "pag": ""}, {"id": "k1-02", "nome": "Progressivo de base", "pag": ""}, {"id": "k1-03", "nome": "Progressivo de amortecimento de quedas e rolamentos", "pag": ""}, {"id": "k1-04", "nome": "Levantada técnica 1 e 2", "pag": ""}, {"id": "k1-05", "nome": "Fuga de quadril", "pag": ""}, {"id": "k1-06", "nome": "Progressivo de barrigada", "pag": ""}, {"id": "k1-07", "nome": "Gangorra 1 completa", "pag": ""}, {"id": "k1-08", "nome": "Defesa pessoal: escapadas de punho, pescoço e agarrões", "pag": ""}, {"id": "k1-09", "nome": "Judô básico", "pag": ""}]}, {"id": "k2", "nome": "Etapa 2: intermediária", "itens": [{"id": "k2-01", "nome": "Verbalização 2 (GPCI)", "pag": ""}, {"id": "k2-02", "nome": "Módulo 1 completo", "pag": ""}, {"id": "k2-03", "nome": "Introdução à gangorra 2: níveis de segurança 1, 2, 3 e 3, 2, 1", "pag": ""}, {"id": "k2-04", "nome": "Estrangulamento e chave de braço dentro da guarda", "pag": ""}, {"id": "k2-05", "nome": "Defesa pessoal com projeções de quadril (pegada no pescoço pela frente, pegada na gola com 2 mãos, pegada no pescoço por trás, agarrão por cima por trás)", "pag": ""}, {"id": "k2-06", "nome": "Progressivo de saídas: 2 de montada, 2 de 100 kg, 2 de norte-sul e 2 de costas", "pag": ""}, {"id": "k2-07", "nome": "Progressivo de saídas: 1 de montada, 1 de 100 kg, 1 de norte-sul e 1 de costas", "pag": ""}, {"id": "k2-08", "nome": "Judô básico", "pag": ""}]}, {"id": "k3", "nome": "Etapa 3: avançada", "itens": [{"id": "k3-01", "nome": "Módulos 1, 2 e 3 completos", "pag": ""}, {"id": "k3-02", "nome": "Gangorra 2 completa", "pag": ""}, {"id": "k3-03", "nome": "Defesa pessoal básica (frente: pescoço 3, agarrão 2, pano 3, tapa, pegada no cabelo; costas: 2 pescoço, 2 agarrões)", "pag": ""}, {"id": "k3-04", "nome": "Progressivo de saídas: 3 de montada, 3 de 100 kg, 2 de norte-sul e 2 de costas", "pag": ""}, {"id": "k3-05", "nome": "Gravatas em pé e no chão", "pag": ""}, {"id": "k3-06", "nome": "Defesa de soco reto, pisão frontal e chute lateral; 4 defesas de gravata em pé e 4 no chão", "pag": ""}, {"id": "k3-07", "nome": "Progressivo de saídas: 4 de montada, 4 de 100 kg, 4 de norte-sul e 4 de costas", "pag": ""}, {"id": "k3-08", "nome": "Judô básico", "pag": ""}]}]};
+
+const NIVEIS_TEC = [['0','—'],['1','Conheço'],['2','Sei fazer'],['3','Posso ensinar']];
+const PRETA_INTERVALOS = [36, 36, 36, 60, 60, 60];
+const trilhaDe = a => ((idadeIBJJF(a.nascimento) ?? 99) <= 15 || (a.mods || []).includes('kids')) ? 'kids' : 'adulto';
+const tecDe = aid => (S.pedag.tecnicas || {})[aid] || {};
+function prontidao(a){
+  const bl = CURRICULO[trilhaDe(a)], t = tecDe(a.id); let tot = 0, ok = 0;
+  bl.forEach(b => b.itens.forEach(i => { tot++; if ((t[i.id] || {}).n >= 2) ok++; }));
+  return {tot, ok, pct: tot ? Math.round(ok / tot * 100) : 0};
+}
+function baseGrau(a){ return a.dataGrau && (!a.dataFaixa || a.dataGrau >= a.dataFaixa) ? a.dataGrau : (a.dataFaixa || a.dataMatricula); }
+function statusGrau(a, naData){
+  if (!usaFaixa(a) || !a.faixa) return null;
+  naData = naData || hoje();
+  const f = faixa(a.faixa), g = Number(a.graus) || 0, base = baseGrau(a);
+  if (!base) return null;
+  const m = mesesEntre(base, naData);
+  if (a.faixa === 'preta'){
+    if (g >= 6) return {apto:false, cheio:true, texto:'Faixa preta 6º grau'};
+    const need = PRETA_INTERVALOS[g];
+    return m >= need ? {apto:true, prox:g + 1, texto:`Pode solicitar o ${g + 1}º grau da preta (IBJJF: ${need / 12} anos desde o anterior)`} : {apto:false, prox:g + 1, texto:`${g + 1}º grau da preta em ${tempoTexto(need - m)} (regra IBJJF)`};
+  }
+  if (['coral','vermelha-branca','vermelha'].includes(a.faixa)) return null;
+  if (g >= f.maxGraus) return {apto:false, cheio:true, texto:`Já tem os ${f.maxGraus} graus: próximo passo é a troca de faixa`};
+  const cg = S.config.criterioGrau, idade = idadeIBJJF(a.nascimento) ?? 99;
+  const crit = idade <= 15 ? cg.kids : a.faixa === 'branca' ? cg.branca : cg.adulto;
+  const t = presEntre(a.id, base, hoje());
+  const faltaM = Math.max(0, (Number(crit.meses) || 0) - m), faltaT = Math.max(0, (Number(crit.treinos) || 0) - t);
+  const apto = !faltaM && !faltaT;
+  return {apto, prox:g + 1, faltaM, faltaT, t, m, texto: apto ? `Apto ao ${g + 1}º grau: ${t} treinos em ${tempoTexto(m)}` : `Para o ${g + 1}º grau faltam ${[faltaT ? `${faltaT} treino(s)` : '', faltaM ? tempoTexto(faltaM) : ''].filter(Boolean).join(' e ')}`};
+}
+const tagGrau = sg => !sg ? '' : sg.apto ? '<span class="tag ok">Apto a grau</span>' : '';
+
+/* ---- Técnicas na ficha ---- */
+function viewTecnicasAluno(a){
+  const tr = trilhaDe(a), bl = CURRICULO[tr], t = tecDe(a.id), pr = prontidao(a);
+  const aulas = {}; Object.values(S.presencas).forEach(p => { if (!(p.alunos || {})[a.id] || !p.conteudo) return; (p.conteudo.blocos || []).forEach(b => { aulas[b] = (aulas[b] || 0) + 1; }); });
+  ui.tecAberto ||= {};
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+    <div><h3>${tr === 'kids' ? 'Conteúdo kids (cartilha infantil SBA)' : 'Sistema Progressivo de Jiu-Jitsu: currículo base SBA (referência para a faixa azul)'}</h3><p class="muted small" style="margin:4px 0 0">Marcado pelos professores. Prontidão = técnicas em "sei fazer" ou "posso ensinar".</p></div>
+    <div style="text-align:right"><strong style="font-family:var(--cond);font-size:34px">${pr.pct}%</strong><div class="muted small">${pr.ok} de ${pr.tot}</div></div></div>
+    <div class="bar" style="margin-top:8px"><i style="width:${pr.pct}%;background:var(--ok)"></i></div></div>
+  ${bl.map(b => { const ok = b.itens.filter(i => (t[i.id] || {}).n >= 2).length;
+    return `<details class="panel" data-bloco="${b.id}" ${ui.tecAberto[b.id] ? 'open' : ''} style="padding:0"><summary style="padding:14px 18px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center;list-style:none">
+      <span><strong>${esc(b.nome)}</strong><span class="muted small" style="display:block">${ok} de ${b.itens.length} dominadas${aulas[b.id] ? `, treinado em ${aulas[b.id]} aula(s) com presença` : ''}</span></span><span class="tag ${ok === b.itens.length ? 'ok' : ''}">${Math.round(ok / b.itens.length * 100)}%</span></summary>
+      <div style="padding:0 18px 12px">${b.itens.map(i => { const n = (t[i.id] || {}).n || 0;
+        return `<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap"><span style="flex:1;min-width:200px;font-size:15px">${esc(i.nome)}${i.pag ? ` <span class="muted small">(p. ${esc(i.pag)})</span>` : ''}</span>
+        <span class="seg" role="group" aria-label="Nível">${NIVEIS_TEC.map(([v, tt]) => `<button class="${String(n) === v ? 'on' : ''}" data-act="tec-set" data-id="${a.id}" data-t="${i.id}" data-n="${v}" aria-pressed="${String(n) === v}">${tt}</button>`).join('')}</span></div>`; }).join('')}</div></details>`; }).join('')}`;
+}
+document.addEventListener('toggle', e => { const d = e.target; if (d && d.dataset && d.dataset.bloco){ ui.tecAberto ||= {}; ui.tecAberto[d.dataset.bloco] = d.open; } }, true);
+
+/* ---- Conteúdo da aula (chamada) ---- */
+function formConteudo(data, tid){
+  const t = turma(tid); if (!t) return;
+  const tr = t.mod === 'kids' ? 'kids' : 'adulto', key = `${data}_${tid}`, p = S.presencas[key] || {}, c = p.conteudo || {blocos:[], obs:''};
+  abrirModal(`<form id="fCont"><h2>Conteúdo da aula</h2><p class="muted small">${esc(mod(t.mod)?.nome || '')}, ${fmtBR(data)} ${t.hora}. Marque os blocos do currículo SBA trabalhados hoje.</p>
+    <div class="checks" style="margin-bottom:12px">${CURRICULO[tr].map(b => `<label class="check"><input type="checkbox" name="bl" value="${b.id}" ${(c.blocos || []).includes(b.id) ? 'checked' : ''}>${esc(b.nome.split(':')[0])}</label>`).join('')}</div>
+    <div class="field"><label for="cObs">Detalhes (opcional)</label><textarea id="cObs" name="obs" placeholder="Ex.: saídas de montada 1 e 2, guarda fechada oponente de joelhos 1 a 3">${esc(c.obs || '')}</textarea></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  $('#fCont').addEventListener('submit', e => {
+    e.preventDefault(); const fd = new FormData(e.target);
+    const pp = S.presencas[key] ||= {data, turma:tid, alunos:{}};
+    pp.conteudo = {blocos:fd.getAll('bl'), obs:String(fd.get('obs') || '').trim()};
+    pp.prof ||= ($('#profAula') || {}).value || profPadrao();
+    registrar(`Registrou conteúdo da aula de ${fmtBR(data)} ${t.hora}`);
+    salvar(); fecharModal(); render(); toast('Conteúdo da aula salvo');
+  });
+}
+function resumoConteudo(p, t){
+  if (!p || !p.conteudo || !(p.conteudo.blocos || []).length) return '';
+  const tr = t.mod === 'kids' ? 'kids' : 'adulto';
+  return CURRICULO[tr].filter(b => p.conteudo.blocos.includes(b.id)).map(b => b.nome.split(':')[0]).join(', ');
+}
+
+/* ---- Currículo: visão da equipe ---- */
+function viewCurriculo(){
+  const tr = ui.curTrilha || 'adulto', h = hoje(), ini60 = addDias(h, -60);
+  const aulas = Object.values(S.presencas).filter(p => p.conteudo && (p.conteudo.blocos || []).length && ((turma(p.turma)?.mod === 'kids') === (tr === 'kids')));
+  const alunos = alunosAtivos().filter(a => usaFaixa(a) && trilhaDe(a) === tr);
+  return `<div class="filters"><select id="curTrilha" aria-label="Currículo"><option value="adulto">Adultos: Sistema Progressivo SBA</option><option value="kids" ${tr === 'kids' ? 'selected' : ''}>Kids: cartilha infantil SBA</option></select></div>
+  <p class="muted small">Cruza o conteúdo registrado na chamada com o nível técnico dos ${alunos.length} aluno(s) ativo(s). Em destaque, blocos sem treino há mais de 30 dias.</p>
+  <div class="list">${CURRICULO[tr].map(b => {
+    const ds = aulas.filter(p => p.conteudo.blocos.includes(b.id)).map(p => p.data).sort();
+    const ult = ds[ds.length - 1], n60 = ds.filter(d => d >= ini60).length;
+    const niv = alunos.length ? Math.round(alunos.reduce((s, a) => { const t = tecDe(a.id); return s + b.itens.filter(i => (t[i.id] || {}).n >= 2).length / b.itens.length; }, 0) / alunos.length * 100) : 0;
+    const esq = !ult || diasEntre(ult, h) > 30;
+    return `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="grow" style="min-width:200px"><span class="name" style="display:block">${esc(b.nome)}</span><span class="meta">${ult ? `última aula ${fmtBR(ult)}, ${n60} aula(s) em 60 dias` : 'nunca registrado na chamada'}${esq ? ' <span class="tag warn">Há mais de 30 dias</span>' : ''}</span></span><span class="small">domínio médio <strong>${niv}%</strong></span></div>`; }).join('')}</div>`;
+}
+
+/* ---- Cerimônias ---- */
+const TIPOS_CER = {mestre:'Cerimônia com o Mestre Sylvio Behring', kids:'Graduação trimestral kids', outra:'Outra graduação'};
+function viewCerimonias(){
+  const h = hoje(), cs = Object.values(S.pedag.cerimonias).sort((a, b) => a.data.localeCompare(b.data));
+  const card = c => { const esc2 = escopoCer(c), aptos = esc2.filter(a => (statusGrau(a, c.data) || {}).apto || ['apto','migrar'].includes(statusGraduacao(a).tipo)).length; const d = diasEntre(h, c.data);
+    return `<a class="row" href="#/cerimonia/${c.id}"><span class="grow"><span class="name" style="display:block">${esc(c.titulo || TIPOS_CER[c.tipo])}</span><span class="meta"><span class="tag">${TIPOS_CER[c.tipo] ? (c.tipo === 'mestre' ? 'Mestre Sylvio' : c.tipo === 'kids' ? 'Kids' : 'Outra') : ''}</span> ${fmtBR(c.data)}${c.hora ? ` às ${esc(c.hora)}` : ''}${c.local ? `, ${esc(c.local)}` : ''}${d >= 0 ? ` <strong>em ${d} dia(s)</strong>` : ''}</span></span><span class="small">${aptos} apto(s)</span></a>`; };
+  return `<div style="margin-bottom:14px"><button class="btn primary" data-act="cer-edit">Nova cerimônia</button></div>
+  <p class="muted small">Cerimônias com o Mestre Sylvio (duas por ano) e graduações trimestrais dos kids feitas pelos professores. A data pode ser alterada a qualquer momento em Editar.</p>
+  <h2>Próximas</h2><div class="list" style="margin-bottom:20px">${cs.filter(c => c.data >= h).map(card).join('') || '<div class="empty">Nenhuma cerimônia agendada.</div>'}</div>
+  <h2>Anteriores</h2><div class="list">${cs.filter(c => c.data < h).reverse().map(card).join('') || '<div class="empty">Nenhuma cerimônia registrada.</div>'}</div>`;
+}
+const escopoCer = c => alunosAtivos().filter(a => usaFaixa(a) && (c.tipo !== 'kids' || ehKids(a))).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+function formCerimonia(id){
+  const c = id ? S.pedag.cerimonias[id] : {tipo:'mestre', data:'', hora:'', local:'', titulo:'', obs:''};
+  const o = (v, t, s) => `<option value="${v}" ${s ? 'selected' : ''}>${esc(t)}</option>`;
+  abrirModal(`<form id="fCer"><h2>${id ? 'Editar' : 'Nova'} cerimônia</h2>
+    <div class="grid2"><div class="field"><label for="ctp">Tipo</label><select id="ctp" name="tipo">${Object.entries(TIPOS_CER).map(([k, t]) => o(k, t, c.tipo === k)).join('')}</select></div>
+    <div class="field"><label for="ctt">Título (opcional)</label><input type="text" id="ctt" name="titulo" value="${esc(c.titulo)}" placeholder="Ex.: Graduação de fim de ano"></div></div>
+    <div class="grid3"><div class="field"><label for="cdt2">Data *</label><input type="date" id="cdt2" name="data" required value="${esc(c.data)}"></div>
+    <div class="field"><label for="chr">Horário</label><input type="time" id="chr" name="hora" value="${esc(c.hora)}"></div>
+    <div class="field"><label for="clc">Local</label><input type="text" id="clc" name="local" value="${esc(c.local)}"></div></div>
+    <div class="field"><label for="cob2">Observações</label><textarea id="cob2" name="obs">${esc(c.obs)}</textarea></div>
+    <div class="actions">${id && isAdmin() ? `<button type="button" class="btn danger" data-act="cer-del" data-id="${id}" style="margin-right:auto">Apagar</button>` : ''}<button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  $('#fCer').addEventListener('submit', e => {
+    e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target)); const nid = id || uid();
+    const ant = S.pedag.cerimonias[nid];
+    S.pedag.cerimonias[nid] = {...(ant || {}), ...fd, id:nid, graduados:(ant || {}).graduados || {}};
+    registrar(ant && ant.data !== fd.data ? `Alterou a data da cerimônia ${fd.titulo || TIPOS_CER[fd.tipo]} de ${fmtBR(ant.data)} para ${fmtBR(fd.data)}` : `${id ? 'Editou' : 'Agendou'} cerimônia: ${fd.titulo || TIPOS_CER[fd.tipo]} (${fmtBR(fd.data)})`);
+    salvar(); fecharModal(); if (!id) location.hash = `#/cerimonia/${nid}`; render(); toast('Cerimônia salva');
+  });
+}
+function viewCerimonia(id){
+  const c = S.pedag.cerimonias[id]; if (!c) return `<div class="empty">Cerimônia não encontrada. <a href="#/graduacoes">Voltar</a></div>`;
+  const lista = escopoCer(c).map(a => ({a, sg:statusGrau(a, c.data), sf:statusGraduacao(a), pr:prontidao(a)}));
+  lista.sort((x, y) => ((y.sg || {}).apto || ['apto','migrar'].includes(y.sf.tipo)) - ((x.sg || {}).apto || ['apto','migrar'].includes(x.sf.tipo)) || x.a.nome.localeCompare(y.a.nome, 'pt-BR'));
+  const passou = c.data <= hoje();
+  return `<p><a href="#/graduacoes" data-act="grad-cer" class="muted small">Voltar para cerimônias</a></p>
+  <div class="head"><div><h1 style="font-size:34px">${esc(c.titulo || TIPOS_CER[c.tipo])}</h1><p class="muted" style="margin:6px 0 0">${TIPOS_CER[c.tipo]}, ${fmtBR(c.data)}${c.hora ? ` às ${esc(c.hora)}` : ''}${c.local ? `, ${esc(c.local)}` : ''}</p></div>
+  <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="cer-edit" data-id="${id}">Editar data e dados</button><button class="btn ghost" data-act="cer-print" data-id="${id}">Imprimir lista</button>${c.tipo !== 'mestre' || true ? `<button class="btn ghost" data-act="com-novo" data-v="cerimonia" data-c="${id}">Comunicado aos pais</button>` : ''}</span></div>
+  ${c.obs ? `<p>${esc(c.obs)}</p>` : ''}
+  <p class="muted small">Situação projetada para o dia da cerimônia: o tempo conta até ${fmtBR(c.data)} e os treinos são os registrados até hoje. Marque quem vai receber grau e registre tudo de uma vez${passou ? '' : ' no dia'}; trocas de faixa são registradas individualmente na ficha.</p>
+  <div class="list">${lista.map(({a, sg, sf, pr}) => { const ja = (c.graduados || {})[a.id];
+    return `<label class="row" style="cursor:pointer;flex-wrap:wrap"><input type="checkbox" name="cerSel" value="${a.id}" ${ja ? 'disabled' : (sg && sg.apto ? 'checked' : '')} style="width:20px;height:20px;accent-color:var(--red)">${faixaComEdu(a, 84)}
+      <span class="grow" style="min-width:200px"><span class="name" style="display:block">${esc(a.nome)}</span><span class="meta">${ja ? '<span class="tag ok">Graduado nesta cerimônia</span>' : ''}${sg ? `${tagGrau(sg)} ${esc(sg.texto)}` : ''}${['apto','migrar'].includes(sf.tipo) ? ` ${tagStatus(sf)}` : ''} Técnica ${pr.pct}%</span></span></label>`; }).join('') || '<div class="empty">Nenhum aluno no escopo desta cerimônia.</div>'}</div>
+  <div style="margin-top:14px"><button class="btn primary" data-act="cer-grau" data-id="${id}">Registrar +1 grau para os marcados</button></div>`;
+}
+function imprimirCerimonia(id){
+  const c = S.pedag.cerimonias[id]; const w = window.open('', '_blank'); if (!w) return toast('Permita pop-ups para imprimir.');
+  const rows = escopoCer(c).map(a => { const sg = statusGrau(a, c.data) || {}, sf = statusGraduacao(a); return `<tr><td><input type="checkbox"></td><td>${esc(a.nome)}</td><td>${esc(faixa(a.faixa).nome)}${a.graus ? `, ${a.graus} grau(s)` : ''}</td><td>${sg.apto ? `Apto ao ${sg.prox}º grau` : esc(sg.texto || '')}</td><td>${['apto','migrar'].includes(sf.tipo) ? esc(sf.texto) : ''}</td><td>${prontidao(a).pct}%</td></tr>`; }).join('');
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(c.titulo || TIPOS_CER[c.tipo])}</title><style>body{font-family:Arial,sans-serif;margin:20px;color:#111}h1{color:#C8102E;margin:0 0 4px}table{width:100%;border-collapse:collapse;font-size:13px;margin-top:14px}td,th{border-bottom:1px solid #ccc;padding:6px;text-align:left}th{font-size:12px;color:#555}</style></head><body>
+    <h1>${esc(c.titulo || TIPOS_CER[c.tipo])}</h1><div>${TIPOS_CER[c.tipo]}, ${fmtBR(c.data)}${c.hora ? ` às ${esc(c.hora)}` : ''}${c.local ? `, ${esc(c.local)}` : ''}. ${esc(S.config.academia || 'Academia SAFE')}, Sistema Progressivo de Jiu-Jitsu SBA.</div>
+    <table><thead><tr><th></th><th>Aluno</th><th>Graduação atual</th><th>Grau</th><th>Faixa</th><th>Técnica</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+  w.document.close();
+}
+function registrarGrauCerimonia(id){
+  const c = S.pedag.cerimonias[id]; const sel = [...document.querySelectorAll('[name=cerSel]:checked')].map(x => x.value);
+  if (!sel.length) return toast('Marque pelo menos um aluno.');
+  let n = 0;
+  sel.forEach(aid => { const a = S.alunos[aid]; if (!a) return; const f = faixa(a.faixa), g = Number(a.graus) || 0, max = a.faixa === 'preta' ? 6 : f.maxGraus; if (g >= max) return;
+    a.historico ||= []; a.historico.push({id:uid(), tipo:'grau', faixa:a.faixa, graus:g + 1, data:c.data, prof:c.titulo || TIPOS_CER[c.tipo], obs:'Cerimônia de graduação'});
+    a.graus = g + 1; a.dataGrau = c.data; (c.graduados ||= {})[aid] = true; n++; });
+  registrar(`Cerimônia ${c.titulo || TIPOS_CER[c.tipo]} (${fmtBR(c.data)}): +1 grau para ${n} aluno(s)`);
+  salvar(); render(); toast(`${n} grau(s) registrado(s)`);
+}
+
+/* ---- Comunicados aos pais (kids) ---- */
+const primeiroNomeResp = a => { const r = String(a.responsavel || '').replace(/\(.*\)/, '').trim(); return r ? r.split(' ')[0] : 'família'; };
+function modeloComunicado(tipo, cid){
+  const c = cid ? S.pedag.cerimonias[cid] : Object.values(S.pedag.cerimonias).filter(x => x.data >= hoje()).sort((a, b) => a.data.localeCompare(b.data))[0];
+  if (tipo === 'cerimonia') return {titulo:`Cerimônia de graduação ${c ? fmtBR(c.data) : ''}`, texto:`Olá, {responsavel}! A cerimônia de graduação do Jiu-Jitsu kids da SAFE será no dia ${c ? fmtBR(c.data) : '__/__'}${c && c.hora ? ` às ${c.hora}` : ''}${c && c.local ? `, em ${c.local}` : ''}. {crianca} deve vir com o kimono limpo e a faixa. Contamos com a presença da família! Oss!`};
+  if (tipo === 'boletim') return {titulo:`Entrega do boletim ${S.config.boletimEntrega ? fmtBR(S.config.boletimEntrega) : ''}`, texto:`Olá, {responsavel}! No dia ${S.config.boletimEntrega ? fmtBR(S.config.boletimEntrega) : '__/__'} entregaremos o boletim trimestral de jiu-jitsu de {crianca}. Ele vai para casa para vocês lerem, deixarem suas observações e assinarem. Qualquer dúvida, estamos à disposição. Oss!`};
+  return {titulo:'', texto:'Olá, {responsavel}! '};
+}
+function formComunicado(tipo, cid){
+  const m = modeloComunicado(tipo || 'livre', cid);
+  abrirModal(`<form id="fCom"><h2>Novo comunicado aos pais</h2>
+    <div class="field"><label for="cmTit">Título (para o seu controle)</label><input type="text" id="cmTit" name="titulo" required value="${esc(m.titulo)}"></div>
+    <div class="field"><label for="cmTxt">Mensagem</label><textarea id="cmTxt" name="texto" style="min-height:140px" required>${esc(m.texto)}</textarea></div>
+    <p class="muted small">{responsavel} vira o primeiro nome do responsável e {crianca} o primeiro nome da criança, em cada envio.</p>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Criar e ir para os envios</button></div></form>`);
+  $('#fCom').addEventListener('submit', e => { e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target)); const id = uid();
+    S.pedag.comunicados[id] = {id, titulo:fd.titulo, texto:fd.texto, data:hoje(), por:quem(), enviados:{}};
+    registrar(`Criou comunicado aos pais: ${fd.titulo}`); salvar(); fecharModal(); ui.gradTab = 'comunicados'; ui.comAberto = id; location.hash = '#/graduacoes'; render(); });
+}
+function viewComunicados(){
+  const cs = Object.values(S.pedag.comunicados).sort((a, b) => b.data.localeCompare(a.data) || b.id.localeCompare(a.id));
+  const kids = alunosAtivos().filter(ehKids).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const ab = ui.comAberto && S.pedag.comunicados[ui.comAberto] ? ui.comAberto : (cs[0] || {}).id;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn primary" data-act="com-novo" data-v="cerimonia">Aviso de cerimônia</button><button class="btn ghost" data-act="com-novo" data-v="boletim">Aviso de boletim</button><button class="btn ghost" data-act="com-novo" data-v="livre">Mensagem livre</button></div>
+  <p class="muted small">Mensagens para os responsáveis dos alunos do Jiu-Jitsu kids, enviadas uma a uma pelo WhatsApp. O app marca quem já recebeu.</p>
+  ${cs.map(c => { const env = Object.keys(c.enviados || {}).filter(id => kids.some(k => k.id === id)).length; const open = c.id === ab;
+    return `<div class="panel"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><div><h3>${esc(c.titulo)}</h3><p class="muted small" style="margin:4px 0 0">${fmtBR(c.data)}, por ${esc(c.por || '')}. Enviado para ${env} de ${kids.length}.</p></div>
+      <span style="display:flex;gap:6px"><button class="btn small ghost" data-act="com-abrir" data-id="${c.id}">${open ? 'Recolher' : 'Enviar'}</button>${isAdmin() ? `<button class="btn small danger" data-act="com-del" data-id="${c.id}">Apagar</button>` : ''}</span></div>
+      ${open ? `<p class="small" style="white-space:pre-wrap;background:var(--chip);padding:10px;border-radius:8px">${esc(c.texto)}</p><div class="list">${kids.map(a => { const tel = a.telResp || a.telefone, ja = (c.enviados || {})[a.id];
+        return `<div class="row" style="cursor:default"><span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span><span class="meta">${esc(a.responsavel || 'Responsável não informado')}${ja ? ' <span class="tag ok">Enviado</span>' : ''}</span></span>${tel ? `<button class="btn small ${ja ? 'ghost' : 'primary'}" data-act="com-env" data-id="${c.id}" data-a="${a.id}">${ja ? 'Reenviar' : 'Enviar'}</button>` : '<span class="muted small">sem telefone</span>'}</div>`; }).join('')}</div>` : ''}</div>`; }).join('') || '<div class="empty">Nenhum comunicado ainda.</div>'}`;
+}
+
+/* ---- Formação dos professores SBA ---- */
+function viewProfessoresSBA(){
+  const ps = Object.values(S.pedag.professores).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  return `<p class="muted small">Formações da SBA de cada professor. Pela cartilha de redes sociais, o perfil segue o padrão A quando o professor concluiu o GPCI e a Defesa Pessoal, e o padrão B até lá.</p>
+  <button class="btn primary" style="margin-bottom:14px" data-act="prof-edit">Adicionar professor</button>
+  <div class="list">${ps.map(p => { const padraoA = p.gpci && p.defesa; return `<button class="row" data-act="prof-edit" data-id="${p.id}">${p.faixa ? beltSVG(p.faixa, p.graus || 0, 84) : ''}<span class="grow"><span class="name" style="display:block">${esc(p.nome)}</span>
+    <span class="meta">${padraoA ? '<span class="tag ok">Padrão A</span>' : '<span class="tag warn">Padrão B</span>'} GPCI: ${p.gpci ? fmtBR(p.gpci) : 'pendente'}, Defesa Pessoal: ${p.defesa ? fmtBR(p.defesa) : 'pendente'}${(p.cursos || '').trim() ? `, ${String(p.cursos).trim().split('\n').length} outro(s) curso(s)` : ''}</span></span></button>`; }).join('') || '<div class="empty">Nenhum professor cadastrado.</div>'}</div>`;
+}
+function formProfessorSBA(id){
+  const p = id ? S.pedag.professores[id] : {nome:'', faixa:'preta', graus:0, gpci:'', defesa:'', cursos:'', obs:''};
+  abrirModal(`<form id="fPsba"><h2>${id ? 'Editar' : 'Adicionar'} professor</h2>
+    <div class="field"><label for="pn2">Nome *</label><input type="text" id="pn2" name="nome" required value="${esc(p.nome)}"></div>
+    <div class="grid2"><div class="field"><label for="pf2">Faixa</label><select id="pf2" name="faixa">${S.config.faixas.filter(f => f.grupo !== 'kids').map(f => `<option value="${f.id}" ${p.faixa === f.id ? 'selected' : ''}>${esc(f.nome)}</option>`).join('')}</select></div>
+    <div class="field"><label for="pg2">Graus</label><input type="number" min="0" max="10" id="pg2" name="graus" value="${esc(p.graus)}"></div></div>
+    <div class="grid2"><div class="field"><label for="pgp">GPCI concluído em</label><input type="date" id="pgp" name="gpci" value="${esc(p.gpci)}"></div>
+    <div class="field"><label for="pdp">Defesa Pessoal concluída em</label><input type="date" id="pdp" name="defesa" value="${esc(p.defesa)}"></div></div>
+    <div class="field"><label for="pcu2">Outros cursos e certificações (um por linha)</label><textarea id="pcu2" name="cursos" placeholder="Ex.: Arbitragem IBJJF, 03/2026">${esc(p.cursos)}</textarea></div>
+    <div class="field"><label for="pob2">Observações</label><input type="text" id="pob2" name="obs" value="${esc(p.obs)}"></div>
+    <div class="actions">${id && isAdmin() ? `<button type="button" class="btn danger" data-act="prof-del" data-id="${id}" style="margin-right:auto">Remover</button>` : ''}<button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  $('#fPsba').addEventListener('submit', e => { e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target)); const nid = id || uid();
+    S.pedag.professores[nid] = {...fd, graus:Number(fd.graus) || 0, id:nid}; registrar(`${id ? 'Atualizou' : 'Cadastrou'} formação SBA de ${fd.nome}`); salvar(); fecharModal(); render(); toast('Professor salvo'); });
+}
+
+/* ---- Painel Hoje ---- */
+function painelHoje(){
+  const h = hoje(), ativos = alunosAtivos(), itens = [];
+  const cer = Object.values(S.pedag.cerimonias).filter(c => c.data >= h).sort((a, b) => a.data.localeCompare(b.data))[0];
+  if (cer){ const d = diasEntre(h, cer.data); itens.push(`<a class="row" href="#/cerimonia/${cer.id}"><span class="grow"><span class="name" style="display:block">${esc(cer.titulo || TIPOS_CER[cer.tipo])}</span><span class="meta">${d === 0 ? 'Hoje' : `Em ${d} dia(s)`}, ${fmtBR(cer.data)}</span></span><span class="tag">Cerimônia</span></a>`); }
+  const aptos = ativos.filter(a => (statusGrau(a) || {}).apto);
+  if (aptos.length) itens.push(`<a class="row" href="#/graduacoes" data-act="grad-aptograu"><span class="grow"><span class="name" style="display:block">${aptos.length} aluno(s) apto(s) a receber grau</span><span class="meta">${aptos.slice(0, 5).map(a => esc(a.nome.split(' ')[0])).join(', ')}${aptos.length > 5 ? '...' : ''}</span></span><span class="tag ok">Grau</span></a>`);
+  const risco = ativos.filter(a => { const p = primeiraAtivacao(a); if (!p || diasEntre(p, h) > 90) return false; const sem = Math.max(1, diasEntre(p, h) / 7); return presEntre(a.id, p, h) / sem < 1.5 || (diasSumido(a) ?? 0) >= 7; });
+  if (risco.length) itens.push(`<a class="row" href="#/crescimento" data-act="cres-ret"><span class="grow"><span class="name" style="display:block">${risco.length} novato(s) precisando de atenção</span><span class="meta">${risco.slice(0, 5).map(a => esc(a.nome.split(' ')[0])).join(', ')}</span></span><span class="tag red">Radar</span></a>`);
+  const lim7 = new Date(Date.now() - 7 * 864e5).toISOString();
+  const anot = ativos.filter(a => Object.values((S.pedag.notas || {})[a.id] || {}).some(n => n.data >= lim7));
+  if (anot.length) itens.push(`<div class="row" style="cursor:default"><span class="grow"><span class="name" style="display:block">Anotações recentes no boletim</span><span class="meta">${anot.map(a => `<a href="#/aluno/${a.id}">${esc(a.nome.split(' ')[0])}</a>`).join(', ')}</span></span><span class="tag">Kids</span></div>`);
+  const ent = S.config.boletimEntrega;
+  if (ent && ent >= h && diasEntre(h, ent) <= 14){ const c = ent.slice(0, 7), regs = S.pedag.boletins[c] || {}, kids = ativos.filter(ehKids), pend = kids.filter(a => !(regs[a.id] || {}).concluido).length;
+    if (pend) itens.push(`<a class="row" href="#/graduacoes" data-act="grad-bol"><span class="grow"><span class="name" style="display:block">${pend} boletim(ns) pendente(s)</span><span class="meta">Entrega em ${fmtBR(ent)}</span></span><span class="tag warn">Boletim</span></a>`); }
+  const niver = ativos.filter(a => a.nascimento && a.nascimento.slice(5) === h.slice(5));
+  if (niver.length) itens.push(`<div class="row" style="cursor:default"><span class="grow"><span class="name" style="display:block">Aniversário hoje</span><span class="meta">${niver.map(a => `<a href="#/aluno/${a.id}">${esc(a.nome)}</a>`).join(', ')}</span></span><span class="tag">Parabéns</span></div>`);
+  return itens.length ? `<h2>Atenção hoje</h2><div class="list" style="margin-bottom:26px">${itens.join('')}</div>` : '';
+}
+
+/* ---- Relatório mensal para os sócios ---- */
+function dadosRelatorio(m){
+  const r = resumoMes(m), ini = `${m}-01`, fim = m === mesAtual() ? hoje() : `${m}-${pad(diasNoMes(m))}`;
+  const alunos = Object.values(S.alunos);
+  const ativosIni = alunos.filter(a => statusEm(a, ini) === 'ativo').length, ativosFim = alunos.filter(a => statusEm(a, fim) === 'ativo').length;
+  const entradas = alunos.filter(a => { const p = primeiraAtivacao(a); return p && p >= ini && p <= fim; }).length;
+  const saidas = saidasNoPeriodo(ini, fim);
+  const exps = Object.values(S.cres.exp).filter(x => (x.data || '').startsWith(m)), vieram = exps.filter(x => ['compareceu','matriculou','nao_fechou'].includes(x.status)).length, mat = exps.filter(x => x.status === 'matriculou').length;
+  const grads = []; alunos.forEach(a => (a.historico || []).forEach(x => { if ((x.data || '').startsWith(m) && !/cadastro|exemplo/i.test(x.obs || '')) grads.push({a, x}); }));
+  const aulas = Object.values(S.presencas).filter(p => (p.data || '').startsWith(m) && Object.keys(p.alunos || {}).length), treinos = aulas.reduce((s, p) => s + Object.keys(p.alunos).length, 0);
+  const atraso = debitosEmAberto().reduce((s, d) => s + d.total, 0);
+  return {m, r, ativosIni, ativosFim, entradas, saidas, exps:exps.length, vieram, mat, grads, aulas:aulas.length, treinos, atraso};
+}
+function finRelatorio(m){
+  const d = dadosRelatorio(m), mot = {}; d.saidas.forEach(s => { const k = s.motivo || 'Não informado'; mot[k] = (mot[k] || 0) + 1; });
+  const linha = (k, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)"><span>${k}</span><strong>${v}</strong></div>`;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="btn primary" data-act="rel-print">Imprimir</button><button class="btn ghost" data-act="rel-wa">Enviar pelo WhatsApp</button></div>
+  <div class="grid2" style="gap:0 16px;align-items:start">
+  <div class="panel"><h3 style="margin-bottom:8px">Financeiro</h3>${linha('Receita recebida', fmtR(d.r.receita))}${linha('Custos', fmtR(d.r.custos))}${linha('Resultado líquido', fmtR(d.r.liquido))}${linha('Mensalidades a receber no mês', fmtR(d.r.aReceber))}${linha('Em atraso, todos os meses', fmtR(d.atraso))}${linha('Ticket médio', fmtR(d.r.ticket))}</div>
+  <div class="panel"><h3 style="margin-bottom:8px">Alunos</h3>${linha('Ativos no início do mês', d.ativosIni)}${linha('Ativos no fim do mês', d.ativosFim)}${linha('Entraram', d.entradas)}${linha('Saíram', d.saidas.length)}${Object.keys(mot).length ? `<p class="muted small" style="margin:8px 0 0">Motivos: ${Object.entries(mot).map(([k, v]) => `${esc(k)} (${v})`).join(', ')}</p>` : ''}</div>
+  <div class="panel"><h3 style="margin-bottom:8px">Aulas experimentais</h3>${linha('Agendadas', d.exps)}${linha('Vieram', d.vieram)}${linha('Matricularam', `${d.mat}${d.vieram ? ` (${Math.round(d.mat / d.vieram * 100)}%)` : ''}`)}</div>
+  <div class="panel"><h3 style="margin-bottom:8px">Tatame</h3>${linha('Aulas com chamada', d.aulas)}${linha('Presenças registradas', d.treinos)}${linha('Média de alunos por aula', d.aulas ? (d.treinos / d.aulas).toFixed(1) : '—')}${linha('Graduações no mês', d.grads.length)}</div></div>`;
+}
+function textoRelatorio(m){
+  const d = dadosRelatorio(m);
+  return `*SAFE: resumo de ${nomeMes(m)}*\nReceita: ${fmtR(d.r.receita)}\nCustos: ${fmtR(d.r.custos)}\nResultado: ${fmtR(d.r.liquido)}\nEm atraso (todos os meses): ${fmtR(d.atraso)}\nAlunos ativos: ${d.ativosIni} → ${d.ativosFim} (+${d.entradas} / −${d.saidas.length})\nExperimentais: ${d.exps} agendadas, ${d.vieram} vieram, ${d.mat} matricularam\nAulas: ${d.aulas}, média de ${d.aulas ? (d.treinos / d.aulas).toFixed(1) : 0} alunos\nGraduações: ${d.grads.length}`;
+}
+function imprimirRelatorio(m){
+  const w = window.open('', '_blank'); if (!w) return toast('Permita pop-ups para imprimir.');
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório ${nomeMes(m)}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#111;max-width:760px}h1{color:#C8102E}.g{display:grid;grid-template-columns:1fr 1fr;gap:12px 28px}.g>div{border-top:3px solid #C8102E;padding-top:6px}div div{display:flex;justify-content:space-between;border-bottom:1px solid #ddd;padding:5px 0;font-size:14px}h3{margin:6px 0}</style></head><body><h1>SAFE: relatório de ${nomeMes(m)}</h1><div class="g">${finRelatorio(m).replace(/<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">.*?<\/div>/, '').replace(/class="panel"/g, '').replace(/class="grid2"[^>]*/, '')}</div><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+  w.document.close();
+}
+
 /* ============ Versão online (Firebase) ============ */
 const CAMPOS_FIN = ['plano','vencimento','bolsa','bolsaPct','desconto','descontoMotivo'];
 let auth = null, db = null, usuario = null, estadoAuth = ONLINE ? 'carregando' : 'ok', pronto = false, base = {}, R = {};
@@ -2465,7 +2748,7 @@ function reconstruir(){
   if (R.configFin) Object.assign(S.config, JSON.parse(JSON.stringify(R.configFin)));
   S.alunos = alunos; S.presencas = JSON.parse(JSON.stringify(R.presencas || {})); S.campeonatos = JSON.parse(JSON.stringify(R.campeonatos || {}));
   S.fin = JSON.parse(JSON.stringify(R.financeiro || {}));
-  S.pedag = {boletins:JSON.parse(JSON.stringify((R.pedagogico || {}).boletins || {})), notas:JSON.parse(JSON.stringify((R.pedagogico || {}).notas || {}))};
+  S.pedag = JSON.parse(JSON.stringify(R.pedagogico || {}));
   const rc = R.crescimento || {}; S.cres = {exp:JSON.parse(JSON.stringify(rc.experimentais || {})), nps:JSON.parse(JSON.stringify(rc.nps || {}))};
   if (isAdmin()){ S.lixeira = JSON.parse(JSON.stringify(R.lixeira || {})); S.log = JSON.parse(JSON.stringify(R.historico || {})); }
   normalizar(); _idx = null;
@@ -2505,6 +2788,10 @@ function mapear(){
   Object.values(S.campeonatos).forEach(c => achatar(m, 'campeonatos/' + c.id, c, 1));
   Object.entries(S.cres.exp).forEach(([id, v]) => achatar(m, 'crescimento/experimentais/' + id, v, 1));
   Object.entries(S.cres.nps).forEach(([id, v]) => achatar(m, 'crescimento/nps/' + id, v, 0));
+  Object.entries(S.pedag.tecnicas || {}).forEach(([aid, ts]) => Object.entries(ts || {}).forEach(([tid, v]) => achatar(m, `pedagogico/tecnicas/${aid}/${tid}`, v, 0)));
+  Object.entries(S.pedag.cerimonias || {}).forEach(([id, v]) => achatar(m, `pedagogico/cerimonias/${id}`, v, 1));
+  Object.entries(S.pedag.professores || {}).forEach(([id, v]) => achatar(m, `pedagogico/professores/${id}`, v, 1));
+  Object.entries(S.pedag.comunicados || {}).forEach(([id, v]) => achatar(m, `pedagogico/comunicados/${id}`, v, 2));
   Object.entries(S.pedag.notas || {}).forEach(([aid, ns]) => Object.entries(ns || {}).forEach(([nid, v]) => achatar(m, `pedagogico/notas/${aid}/${nid}`, v, 0)));
   Object.entries(S.pedag.boletins).forEach(([c, regs]) => Object.entries(regs || {}).forEach(([id, v]) => achatar(m, `pedagogico/boletins/${c}/${id}`, v, 1)));
   return m;
@@ -2683,7 +2970,7 @@ document.addEventListener('click', e => {
   const act = el.dataset.act, id = el.dataset.id;
   if (act === 'fundo'){ if (e.target === el) fecharModal(); return; }
   if (['papel','tema'].includes(act)) return; // tratados no change
-  if (!['grad-aptos','ver-sumidos','ver-equipe','cres-exp'].includes(act)) e.preventDefault();
+  if (!['grad-aptos','ver-sumidos','ver-equipe','cres-exp','grad-cer','grad-aptograu','grad-bol','cres-ret'].includes(act)) e.preventDefault();
   const A = {
     'fechar': fecharModal,
     'novo-aluno': () => formAluno(),
@@ -2728,6 +3015,24 @@ document.addEventListener('click', e => {
     'fr-ok': () => confirmarFotoChamada(),
     'bol-edit': () => formBoletim(id, el.dataset.c),
     'fichaTab': () => { ui.fichaTab = el.dataset.v; render(); },
+    'tec-set': () => { const t = ((S.pedag.tecnicas ||= {})[id] ||= {}); const n = Number(el.dataset.n); if (n) t[el.dataset.t] = {n, d:hoje(), por:quem()}; else delete t[el.dataset.t]; registrar(`Atualizou o nível técnico de ${S.alunos[id]?.nome || ''}`); salvar(); render(); },
+    'conteudo': () => formConteudo(el.dataset.data, el.dataset.t),
+    'cer-edit': () => formCerimonia(id),
+    'cer-del': async () => { if (await confirmar('Apagar esta cerimônia? Os graus já registrados continuam no histórico dos alunos.', 'Apagar')){ registrar(`Apagou a cerimônia de ${fmtBR(S.pedag.cerimonias[id].data)}`); delete S.pedag.cerimonias[id]; salvar(); ui.gradTab = 'cerimonias'; location.hash = '#/graduacoes'; render(); } },
+    'cer-print': () => imprimirCerimonia(id),
+    'cer-grau': async () => { const n = document.querySelectorAll('[name=cerSel]:checked').length; if (!n) return toast('Marque pelo menos um aluno.'); const fut = S.pedag.cerimonias[id].data > hoje(); if (await confirmar(`${fut ? 'Atenção: a cerimônia ainda não aconteceu. ' : ''}Registrar +1 grau para ${n} aluno(s), com a data da cerimônia (${fmtBR(S.pedag.cerimonias[id].data)})?`, 'Registrar')) registrarGrauCerimonia(id); },
+    'grad-cer': () => { ui.gradTab = 'cerimonias'; },
+    'grad-aptograu': () => { ui.gradTab = 'alunos'; ui.gradFiltro = 'aptoGrau'; },
+    'grad-bol': () => { ui.gradTab = 'boletim'; },
+    'cres-ret': () => { ui.cresTab = 'ret'; },
+    'com-novo': () => formComunicado(el.dataset.v, el.dataset.c),
+    'com-abrir': () => { ui.comAberto = ui.comAberto === id ? '__nenhum' : id; render(); },
+    'com-env': () => { const c = S.pedag.comunicados[id], a = S.alunos[el.dataset.a]; if (!c || !a) return; const txt = c.texto.replace(/\{responsavel\}/g, primeiroNomeResp(a)).replace(/\{crianca\}/g, a.nome.split(' ')[0]); const url = waLink(a.telResp || a.telefone, txt); if (url) window.open(url, '_blank'); c.enviados[a.id] = new Date().toISOString(); salvar(); render(); },
+    'com-del': async () => { if (await confirmar('Apagar este comunicado e o controle de envios?', 'Apagar')){ delete S.pedag.comunicados[id]; salvar(); render(); } },
+    'prof-edit': () => formProfessorSBA(id),
+    'prof-del': async () => { if (await confirmar('Remover este professor da lista de formação?', 'Remover')){ registrar(`Removeu ${S.pedag.professores[id]?.nome || ''} da lista de formação`); delete S.pedag.professores[id]; salvar(); render(); } },
+    'rel-print': () => imprimirRelatorio(ui.finMes),
+    'rel-wa': () => window.open(`https://wa.me/?text=${encodeURIComponent(textoRelatorio(ui.finMes))}`, '_blank'),
     'nota-add': () => { const t = ($('#notaTxt') || {}).value || ''; if (!t.trim()) return toast('Escreva a anotação primeiro.'); const nid = uid(); ((S.pedag.notas ||= {})[id] ||= {})[nid] = {id:nid, data:new Date().toISOString(), por:quem(), texto:t.trim()}; registrar(`Anotação de professor no boletim de ${S.alunos[id]?.nome || ''}`); salvar(); render(); toast('Anotação salva'); },
     'nota-del': async () => { if (await confirmar('Apagar esta anotação?', 'Apagar')){ delete ((S.pedag.notas || {})[id] || {})[el.dataset.n]; registrar(`Apagou anotação do boletim de ${S.alunos[id]?.nome || ''}`); salvar(); render(); } },
     'bol-print': () => { const c = el.dataset.c, b = (S.pedag.boletins[c] || {})[id]; if (b) imprimirBoletins([[S.alunos[id], b]], c); },
@@ -2842,6 +3147,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'bolCiclo'){ ui.bolCiclo = t.value; renderDepois(); }
   else if (t.id === 'bolTurma'){ ui.bolTurma = t.value; renderDepois(); }
   else if (t.id === 'bolEnt'){ S.config.boletimEntrega = t.value; ui.bolCiclo = t.value ? t.value.slice(0, 7) : ui.bolCiclo; registrar(`Definiu a entrega do boletim infantil para ${fmtBR(t.value)}`); salvar(); renderDepois(); }
+  else if (t.id === 'curTrilha'){ ui.curTrilha = t.value; renderDepois(); }
   else if (t.id === 'cresMes'){ ui.cresMes = t.value || hoje().slice(0, 7); renderDepois(); }
   else if (t.id === 'profMes'){ ui.profMes = t.value || hoje().slice(0, 7); renderDepois(); }
   else if (t.id === 'profAula'){ const [, d, tid] = rota(); const v = t.value.trim(); S.meta.ultimoProf = v || S.meta.ultimoProf; const k = `${d}_${tid}`; if (S.presencas[k]){ if (v) S.presencas[k].prof = v; else delete S.presencas[k].prof; } if (!ONLINE) salvar(); else salvar(); }
