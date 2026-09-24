@@ -182,6 +182,15 @@ td input{min-height:36px;padding:6px 8px}
 fieldset{border:0;padding:0;margin:0 0 18px}
 legend{font-family:var(--cond);font-weight:600;font-size:20px;margin-bottom:10px;padding:0}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:8px;z-index:60;font-weight:500;max-width:90vw}
+/* estrelas do boletim */
+.bol-linha{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bol-linha select{max-width:220px}
+.stars{display:inline-flex;flex-direction:row;gap:2px}
+.stars label{cursor:pointer;font-size:28px;line-height:1;color:var(--line)}
+.stars input{position:absolute;opacity:0;width:1px;height:1px}
+.stars label:has(input:checked) span[aria-hidden],.stars:has(label:nth-child(2) input:checked) label:nth-child(1) span[aria-hidden],.stars:has(label:nth-child(3) input:checked) label:nth-child(-n+2) span[aria-hidden],.stars:has(label:nth-child(4) input:checked) label:nth-child(-n+3) span[aria-hidden],.stars:has(label:nth-child(5) input:checked) label:nth-child(-n+4) span[aria-hidden]{color:#E0A100}
+.stars input:focus-visible + span{outline:2px solid var(--focus);border-radius:4px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #conexao{position:fixed;left:0;right:0;top:0;z-index:70;padding:calc(8px + env(safe-area-inset-top,0px)) 14px 8px;font-size:14px;font-weight:600;text-align:center;display:none}
 #conexao.con-off{background:var(--red);color:#fff}
 #conexao.con-salvando{background:var(--warn-soft);color:var(--ink)}
@@ -277,7 +286,7 @@ function faixasPadrao(){
 }
 const faixa = id => S.config.faixas.find(f => f.id === id) || S.config.faixas[0];
 
-function beltSVG(id, graus = 0, w = 120){
+function beltSVG(id, graus = 0, w = 120, edu = null){
   const f = faixa(id), h = Math.round(w * 0.17), px = Math.round(w * 0.66), pw = Math.round(w * 0.24);
   let body = '';
   if (f.blocos){
@@ -293,7 +302,11 @@ function beltSVG(id, graus = 0, w = 120){
     const g = Math.min(Number(graus) || 0, 10), sw = Math.max(2, w * 0.022), gap = sw * 1.9;
     for (let i = 0; i < g; i++) pont += `<rect x="${px + pw - (i+1)*gap}" y="0" width="${sw}" height="${h}" fill="#F7F7F7"/>`;
   }
-  const label = `Faixa ${f.nome}${graus ? `, ${graus} grau${graus > 1 ? 's' : ''}` : ''}`;
+  if (edu){
+    const cores = {amarelo:'#F2C200', azul:'#2F7FE0', vermelho:'#D7263D', verde:'#2FA84F'}, sw = Math.max(2, w * 0.03), gap = sw * 1.7;
+    ['amarelo','azul','vermelho','verde'].forEach((k, i) => { if (edu[k]) pont += `<rect x="${w * 0.06 + i * gap}" y="0" width="${sw}" height="${h}" fill="${cores[k]}"/>`; });
+  }
+  const label = `Faixa ${f.nome}${graus ? `, ${graus} grau${graus > 1 ? 's' : ''}` : ''}${edu && Object.values(edu).some(Boolean) ? `, graus educacionais: ${Object.keys(edu).filter(k => edu[k]).join(', ')}` : ''}`;
   return `<svg class="belt" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title>${body}${pont}<rect x=".5" y=".5" width="${w-1}" height="${h-1}" fill="none" stroke="rgba(128,128,128,.45)"/></svg>`;
 }
 
@@ -316,6 +329,9 @@ function statusGraduacao(a){
   const nextId = proximaFaixa(a);
   if (!nextId) return {tipo:'max', texto:'Última faixa da sequência'};
   const nf = faixa(nextId);
+  if (idade < 16 && S.config.exigirEdu !== false && !eduCompletos(a)){
+    return {tipo:'graus', texto:`Faltam graus educacionais: ${EDU.filter(g => !eduDe(a)[g.id]).map(g => g.nome.replace('Grau ', '')).join(', ')}`, next:nextId};
+  }
   if (S.config.exigirGraus !== false && (a.graus || 0) < cur.maxGraus){
     return {tipo:'graus', texto:`Tem ${a.graus || 0} de ${cur.maxGraus} graus antes de ${nf.nome}`, next:nextId};
   }
@@ -391,6 +407,8 @@ function normalizar(){
   S.fin ||= {}; ['mensalidades','lancamentos','vendas','produtos'].forEach(k => { S.fin[k] ||= {}; });
   S.log ||= {}; S.lixeira ||= {};
   S.cres ||= {}; S.cres.exp ||= {}; S.cres.nps ||= {};
+  S.pedag ||= {}; S.pedag.boletins ||= {}; S.pedag.notas ||= {};
+  S.config.boletimEntrega ??= '2026-09-30';
   Object.values(S.alunos).forEach(a => { if (!a.canal){ const mm = String(a.obs || '').match(/Conheceu a SAFE por: ([^.]+)/); if (mm) a.canal = canalDe(mm[1]); } });
   Object.values(S.alunos).forEach(a => { a.historicoStatus = arr(a.historicoStatus); });
   S.config.inicioFinanceiro ??= Object.keys(S.fin.mensalidades).sort()[0] || hoje().slice(0, 7);
@@ -538,11 +556,12 @@ function listaAlunos(){
       <span class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
       <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>
         <span class="meta">${a.nascimento ? `${idadeReal(a.nascimento)} anos` : ''}${(a.mods || []).map(id => { const m = mod(id); return m ? `<span class="tag"><i class="dot" style="background:${m.cor};width:7px;height:7px"></i> ${esc(m.nome)}</span>` : ''; }).join('')}${a.status !== 'ativo' ? `<span class="tag warn">${a.status === 'novo' ? 'novo cadastro' : a.status}</span>` : ''}${a.atleta ? '<span class="tag red">atleta</span>' : ''}${a.bolsa === 'professor' ? '<span class="tag ok">professor</span>' : ''}</span></span>
-      ${usaFaixa(a) ? beltSVG(a.faixa, a.graus, 84) : ''}
+      ${usaFaixa(a) ? faixaComEdu(a, 84) : ''}
     </a>`).join('') : `<div class="empty">${Object.keys(S.alunos).length ? 'Nenhum aluno com esses filtros.' : 'Nenhum aluno cadastrado. Toque em "Novo aluno" para começar.'}</div>`;
 }
 
 function viewAluno(id){
+  if (ui.fichaAluno !== id){ ui.fichaAluno = id; ui.fichaTab = 'dados'; }
   const a = S.alunos[id];
   if (!a) return `<div class="empty">Aluno não encontrado. <a href="#/alunos">Voltar para a lista</a></div>`;
   const st = statusGraduacao(a), f = faixa(a.faixa);
@@ -559,7 +578,7 @@ function viewAluno(id){
     <span class="avatar big" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
     <div style="flex:1;min-width:220px">
       <h1 style="font-size:36px">${esc(a.nome)}</h1>
-      ${usaFaixa(a) ? `<div class="meta" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">${beltSVG(a.faixa, a.graus, 150)} <span class="muted">${esc(f.nome)}${a.graus ? `, ${a.graus} grau${a.graus > 1 ? 's' : ''}` : ''}</span></div>` : ''}
+      ${usaFaixa(a) ? `<div class="meta" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">${faixaComEdu(a, 150)} <span class="muted">${esc(f.nome)}${a.graus ? `, ${a.graus} grau${a.graus > 1 ? 's' : ''}` : ''}</span></div>` : ''}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${usaFaixa(a) ? `<button class="btn primary" data-act="graduar" data-id="${id}">Registrar graduação</button>` : ''}
@@ -568,6 +587,8 @@ function viewAluno(id){
       ${S.config.facial ? `<button class="btn ghost" data-act="rosto" data-id="${id}">Rosto ${a.consBio ? `(${(a.rosto || []).length})` : '(sem autorização)'}</button>` : ''}
     </div>
   </div>
+  ${ehKidsMod(a) ? `<div class="tabs" role="tablist"><button role="tab" aria-selected="${ui.fichaTab !== 'boletim'}" class="${ui.fichaTab !== 'boletim' ? 'on' : ''}" data-act="fichaTab" data-v="dados">Dados</button><button role="tab" aria-selected="${ui.fichaTab === 'boletim'}" class="${ui.fichaTab === 'boletim' ? 'on' : ''}" data-act="fichaTab" data-v="boletim">Boletim</button></div>` : ''}
+  ${ehKidsMod(a) && ui.fichaTab === 'boletim' ? viewBoletimAluno(a) : `
   <div class="panel">
     <div class="statline">
       <div><strong>${pres.length}</strong><span>treinos no total</span></div>
@@ -607,7 +628,7 @@ function viewAluno(id){
       ${isAdmin() ? kv('Plano', plano ? `${esc(plano.nome)}, R$ ${plano.valor}/mês` : 'Não definido') + kv('Vencimento', a.vencimento ? `Dia ${a.vencimento}` : '') + kv('Bolsa', a.bolsa && a.bolsa !== 'nenhuma' ? (a.bolsa === 'professor' ? 'Isento (professor ou instrutor)' : a.bolsa === 'integral' ? 'Integral' : `Parcial, ${a.bolsaPct || 0}%`) : '') + kv('Desconto', a.desconto ? `R$ ${a.desconto} (${esc(a.descontoMotivo || 'sem motivo')})` : '') : ''}
     </dl>
   </div>
-  ${isAdmin() ? `<button class="btn danger" data-act="excluir-aluno" data-id="${id}">Excluir aluno</button>` : ''}`;
+  ${isAdmin() ? `<button class="btn danger" data-act="excluir-aluno" data-id="${id}">Excluir aluno</button>` : ''}`}`;
 }
 
 function formAluno(id, pre, aoSalvar){
@@ -894,7 +915,7 @@ function listaChamada(data, tid){
       <span class="mark" aria-hidden="true">${on ? '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span>
       <span class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
       <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>${(a.mods || []).includes(t.mod) ? '' : '<span class="meta">de outra turma</span>'}</span>
-      ${beltSVG(a.faixa, a.graus, 70)}</button>`;
+      ${faixaComEdu(a, 70)}</button>`;
   }).join('') : `<div class="empty">Nenhum aluno ativo em ${esc(mod(t.mod)?.nome)}. Marque a modalidade na ficha do aluno.</div>`;
 }
 function togglePres(id, key, data, tid){
@@ -907,9 +928,10 @@ function togglePres(id, key, data, tid){
 
 /* ============ Graduações ============ */
 function viewGraduacoes(){
-  const tabs = [['alunos','Alunos'],['requisitos','Requisitos IBJJF']];
+  const tabs = [['alunos','Alunos'],['boletim','Boletim infantil'],['requisitos','Requisitos IBJJF']];
   let corpo;
-  if (ui.gradTab === 'alunos'){
+  if (ui.gradTab === 'boletim'){ corpo = viewBoletim(); }
+  else if (ui.gradTab === 'alunos'){
     const filtros = [['todos','Todos'],['aptos','Aptos a trocar de faixa'],['kids','Kids (até 15 anos)'],['adultos','16 anos ou mais']];
     let arr = ativosFaixa().map(a => ({a, st:statusGraduacao(a), idade:idadeIBJJF(a.nascimento)}));
     if (ui.gradFiltro === 'aptos') arr = arr.filter(x => ['apto','migrar'].includes(x.st.tipo));
@@ -919,7 +941,7 @@ function viewGraduacoes(){
     arr.sort((x, y) => ordem[x.st.tipo] - ordem[y.st.tipo] || x.a.nome.localeCompare(y.a.nome, 'pt-BR'));
     corpo = `<div class="filters"><select id="gradFiltro" aria-label="Filtrar">${filtros.map(([v, t]) => `<option value="${v}" ${ui.gradFiltro === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
     <div class="list">${arr.length ? arr.map(({a, st}) => `
-      <a class="row" href="#/aluno/${a.id}">${beltSVG(a.faixa, a.graus, 96)}
+      <a class="row" href="#/aluno/${a.id}">${faixaComEdu(a, 96)}
         <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>
         <span class="meta">${tagStatus(st)} na faixa há ${tempoTexto(mesesEntre(a.dataFaixa || a.dataMatricula, hoje()))}, ${presEntre(a.id, a.dataFaixa || '0000', hoje())} treinos</span></span></a>`).join('') : `<div class="empty">Nenhum aluno neste filtro.</div>`}</div>`;
   } else {
@@ -978,6 +1000,7 @@ function viewMais(){
   } else if (ui.maisTab === 'faixas'){
     c = `<p class="muted small">Valores padrão do Sistema de Graduação IBJJF. Altere se a regra mudar ou se a academia usar critério próprio.</p>
     <label class="check" style="margin-bottom:14px"><input type="checkbox" data-exigir-graus ${S.config.exigirGraus !== false ? 'checked' : ''}>Critério da academia: só indicar troca de faixa quando o aluno tiver todos os graus</label>
+    <label class="check" style="margin-bottom:14px"><input type="checkbox" data-exigir-edu ${S.config.exigirEdu !== false ? 'checked' : ''}>Infantil (até 15 anos): exigir também os 4 graus educacionais da SBA</label>
     <div class="tbl-wrap"><table><thead><tr><th>Faixa</th><th>Idade mín.</th><th>Idade máx.</th><th>Tempo mín. (meses)</th><th>Máx. graus</th></tr></thead><tbody>
     ${S.config.faixas.map((f, i) => `<tr><td style="white-space:nowrap">${beltSVG(f.id, 0, 70)} ${esc(f.nome)}</td>
       <td><input type="number" value="${f.idadeMin}" data-bind="faixas.${i}.idadeMin" data-num aria-label="Idade mínima"></td>
@@ -1915,7 +1938,7 @@ function finAberto(){
   }).join('') : '<div class="empty">Nenhuma mensalidade em atraso. Tatame limpo!</div>'}</div>`;
 }
 // Backup em arquivo
-function dadosBackup(){ return {config:S.config, alunos:S.alunos, presencas:S.presencas, campeonatos:S.campeonatos, fin:S.fin, cres:S.cres, geradoEm:new Date().toISOString()}; }
+function dadosBackup(){ return {config:S.config, alunos:S.alunos, presencas:S.presencas, campeonatos:S.campeonatos, fin:S.fin, cres:S.cres, pedag:S.pedag, geradoEm:new Date().toISOString()}; }
 function baixarBackup(){
   try {
     const blob = new Blob([JSON.stringify(dadosBackup())], {type:'application/json'});
@@ -1955,6 +1978,164 @@ function painelSeguranca(){
     <input type="search" id="logBusca" placeholder="Buscar por nome, aluno ou ação" value="${esc(ui.logBusca || '')}" style="margin-bottom:10px">
     <div class="list" style="max-height:420px;overflow:auto">${lg.length ? lg.slice(0, ui.logN || 100).map(x => `<div class="row" style="cursor:default"><span class="grow"><span style="display:block">${esc(x.acao)}</span><span class="meta">${dt(x.data)}, ${esc(x.por)}</span></span></div>`).join('') : '<div class="empty">Nenhum registro.</div>'}</div>
     ${lg.length > (ui.logN || 100) ? `<button class="btn small ghost" style="margin-top:8px" data-act="log-mais">Ver mais</button>` : ''}</div>`;
+}
+
+/* ============ Boletim infantil e graus educacionais (SBA) ============ */
+const EDU = [
+  {id:'amarelo', nome:'Grau amarelo', cor:'#F2C200', desc:'Obediência nas aulas e bom comportamento em casa e na escola'},
+  {id:'azul', nome:'Grau azul', cor:'#2F7FE0', desc:'Amarrar a faixa sozinho e mantê-la amarrada durante a aula'},
+  {id:'vermelho', nome:'Grau vermelho', cor:'#D7263D', desc:'Atenção e postura durante a formação de início e encerramento da aula'},
+  {id:'verde', nome:'Grau verde', cor:'#2FA84F', desc:'Foco no aprendizado das técnicas'}
+];
+const CRIT_BOL = [['pontualidade','Pontualidade'],['higieneKimono','Higiene do kimono'],['higienePessoal','Higiene pessoal'],['respTatame','Respeito com o tatame'],['respProfessor','Respeito com o professor'],['respColegas','Respeito com os colegas']];
+const turmaSBA = a => { const i = idadeIBJJF(a.nascimento); return i == null ? '' : i <= 6 ? 'Mini Kids' : i <= 11 ? 'Kids' : i <= 15 ? 'Nova Geração' : ''; };
+const ehKidsIdade_antigo = a => a.status === 'ativo' && (((a.mods || []).includes('kids')) || (idadeIBJJF(a.nascimento) ?? 99) <= 15) && (idadeIBJJF(a.nascimento) ?? 0) <= 15;
+const ehKids = a => a.status === 'ativo' && (a.mods || []).includes('kids');
+const eduDe = a => a.grausEdu || {};
+const eduCompletos = a => EDU.every(g => eduDe(a)[g.id]);
+function faixaComEdu(a, w){ return beltSVG(a.faixa, a.graus, w, (idadeIBJJF(a.nascimento) ?? 99) <= 15 ? eduDe(a) : null); }
+const estrelas = n => { n = Number(n) || 0; return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n); };
+function mediaBol(b){ const v = CRIT_BOL.map(([k]) => Number((b.notas || {})[k]) || 0).filter(Boolean); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : 0; }
+
+function viewBoletim(){
+  const ciclo = ui.bolCiclo || (S.config.boletimEntrega || hoje()).slice(0, 7);
+  const regs = S.pedag.boletins[ciclo] || {};
+  const ciclos = [...new Set([...Object.keys(S.pedag.boletins), (S.config.boletimEntrega || hoje()).slice(0, 7)])].sort().reverse();
+  const kids = Object.values(S.alunos).filter(a => ehKids(a) || regs[a.id]).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const feitos = kids.filter(a => regs[a.id] && regs[a.id].concluido).length;
+  const ent = S.config.boletimEntrega;
+  const dias = ent ? diasEntre(hoje(), ent) : null;
+  return `<div class="panel"><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin:0;max-width:200px"><label for="bolCiclo">Ciclo</label><select id="bolCiclo">${ciclos.map(c => `<option value="${c}" ${c === ciclo ? 'selected' : ''}>${nomeMes(c)}</option>`).join('')}</select></div>
+      <div class="field" style="margin:0;max-width:200px"><label for="bolEnt">Próxima entrega</label><input type="date" id="bolEnt" value="${esc(ent || '')}"></div>
+      
+      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="bol-print-todos">Imprimir preenchidos</button></span></div>
+    <p style="margin:12px 0 4px"><strong style="font-family:var(--cond);font-size:26px">${feitos} de ${kids.length}</strong> <span class="muted">boletins concluídos em ${nomeMes(ciclo)}${dias != null && ciclo === (ent || '').slice(0, 7) ? (dias >= 0 ? `, entrega em ${dias} dia(s)` : `, entrega era ${fmtBR(ent)}`) : ''}</span></p>
+    <div class="bar"><i style="width:${kids.length ? Math.round(feitos / kids.length * 100) : 0}%;background:var(--ok)"></i></div>
+    <p class="muted small" style="margin-bottom:0">Alunos matriculados na modalidade Jiu-Jitsu kids. Os graus educacionais marcados no boletim atualizam a faixa do aluno. O histórico completo e as anotações internas ficam na ficha de cada criança, aba Boletim.</p></div>
+  <div class="list">${kids.length ? kids.map(a => { const b = regs[a.id]; return `<button class="row" data-act="bol-edit" data-id="${a.id}">
+      <span class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
+      <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>
+      <span class="meta">${b && b.concluido ? `<span class="tag ok">Concluído</span> ${estrelas(Math.round(mediaBol(b)))}` : b ? '<span class="tag warn">Rascunho</span>' : '<span class="tag">Pendente</span>'}${b && b.prof ? `, ${esc(b.prof)}` : ''}</span></span>
+      ${faixaComEdu(a, 84)}</button>`; }).join('') : '<div class="empty">Nenhum aluno infantil ativo.</div>'}</div>`;
+}
+function formBoletim(id, cicloParam){
+  const a = S.alunos[id]; if (!a) return;
+  const ciclo = cicloParam || ui.bolCiclo || (S.config.boletimEntrega || hoje()).slice(0, 7);
+  const ant = Object.keys(S.pedag.boletins).filter(c => c < ciclo && S.pedag.boletins[c][id]).sort().pop();
+  const bAnt = ant ? S.pedag.boletins[ant][id] : null;
+  const b = (S.pedag.boletins[ciclo] || {})[id] || {notas:{}, edu:{}, prof:profPadrao(), data:S.config.boletimEntrega || hoje()};
+  const eduAtual = eduDe(a);
+  const estrelasInput = (k, v) => `<span class="stars" role="radiogroup" aria-label="${k}">${[1,2,3,4,5].map(n => `<label title="${n}"><input type="radio" name="n_${k}" value="${n}" ${Number(v) === n ? 'checked' : ''}><span aria-hidden="true">★</span><span class="sr">${n} estrela(s)</span></label>`).join('')}</span>`;
+  abrirModal(`<form id="fBol"><h2>Boletim infantil, ${nomeMes(ciclo)}</h2>
+    <p style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${faixaComEdu(a, 120)} <span><strong>${esc(a.nome)}</strong><br><span class="muted small">${idadeReal(a.nascimento)} anos, ${esc(faixa(a.faixa).nome)}${a.graus ? ` ${a.graus} grau(s)` : ''}${a.responsavel ? `. Responsável: ${esc(a.responsavel)}` : ''}</span></span></p>
+    <div class="grid2"><div class="field"><label for="bEsc">Escolaridade</label><input type="text" id="bEsc" name="escolaridade" value="${esc(a.escolaridade || '')}" placeholder="Ex.: 3º ano do fundamental"></div>
+    <div class="field"><label for="bObj">Objetivos com o jiu-jitsu</label><input type="text" id="bObj" name="objetivos" value="${esc(a.objetivos || '')}"></div></div>
+    <fieldset><legend>Disciplina e postura</legend>
+      ${CRIT_BOL.map(([k, t]) => `<div class="bol-linha"><span>${t}${bAnt ? ` <span class="muted small">(antes: ${Number(bAnt.notas?.[k]) || '—'})</span>` : ''}</span>${estrelasInput(k, b.notas?.[k])}</div>`).join('')}
+    </fieldset>
+    <fieldset><legend>Graus educacionais</legend>
+      <p class="muted small" style="margin-top:0">Método de graduação educacional adotado pela SBA: o grau pode ser conquistado e também perdido, se o comportamento mudar.</p>
+      ${EDU.map(g => { const v = b.edu?.[g.id] || (eduAtual[g.id] ? 'conquistado' : 'desenvolvimento'); return `<div class="bol-linha"><span><i class="dot" style="background:${g.cor};width:12px;height:12px"></i> <strong>${g.nome}</strong><br><span class="muted small">${g.desc}</span></span>
+        <select name="e_${g.id}" aria-label="${g.nome}">${[['desenvolvimento','Em desenvolvimento'],['conquistado','Conquistado'],['perdeu','Perdeu']].map(([k, t]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`; }).join('')}
+    </fieldset>
+    <div class="field"><label for="bCons">Considerações do professor</label><textarea id="bCons" name="consid">${esc(b.consid || '')}</textarea></div>
+    <div class="field"><label for="bPais">Observações dos pais</label><textarea id="bPais" name="obsPais" placeholder="Pode ser preenchido depois, quando o boletim voltar assinado">${esc(b.obsPais || '')}</textarea></div>
+    <div class="field"><label for="bInt">Anotações internas dos professores</label><textarea id="bInt" name="interno" placeholder="Só a equipe vê: não sai na impressão nem na mensagem aos pais">${esc(b.interno || '')}</textarea></div>
+    <div class="grid2"><div class="field"><label for="bProf">Professor ou instrutor</label><input type="text" id="bProf" name="prof" value="${esc(b.prof || '')}"></div>
+    <div class="field"><label for="bData">Data</label><input type="date" id="bData" name="data" value="${esc(b.data || hoje())}"></div></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button type="submit" class="btn ghost" name="acao" value="rascunho">Salvar rascunho</button><button type="submit" class="btn primary" name="acao" value="concluir">Concluir boletim</button></div></form>`);
+  $('#fBol').addEventListener('submit', e => {
+    e.preventDefault();
+    const fd = new FormData(e.target), acao = (e.submitter && e.submitter.value) || 'concluir';
+    const notas = {}; CRIT_BOL.forEach(([k]) => { const v = fd.get('n_' + k); if (v) notas[k] = Number(v); });
+    if (acao === 'concluir' && Object.keys(notas).length < CRIT_BOL.length) return toast('Dê as estrelas nos seis itens de disciplina e postura para concluir.');
+    const edu = {}; EDU.forEach(g => { edu[g.id] = fd.get('e_' + g.id); });
+    const al = S.alunos[id]; if (!al) return toast('Aluno não encontrado.');
+    if (fd.get('escolaridade') !== (al.escolaridade || '')) al.escolaridade = fd.get('escolaridade');
+    if (fd.get('objetivos') !== (al.objetivos || '')) al.objetivos = fd.get('objetivos');
+    const ge = {...eduDe(al)}; let mudou = [];
+    EDU.forEach(g => { const tem = edu[g.id] === 'conquistado'; if (!!ge[g.id] !== tem){ mudou.push(`${g.nome} ${tem ? 'conquistado' : 'retirado'}`); ge[g.id] = tem; } });
+    al.grausEdu = ge;
+    (S.pedag.boletins[ciclo] ||= {})[id] = {notas, edu, consid:fd.get('consid'), obsPais:fd.get('obsPais'), interno:fd.get('interno') || '', prof:fd.get('prof'), data:fd.get('data'), concluido: acao === 'concluir', atualizado:new Date().toISOString()};
+    S.meta.ultimoProf = fd.get('prof') || S.meta.ultimoProf;
+    registrar(`Boletim infantil de ${al.nome} (${nomeMes(ciclo)}): ${acao === 'concluir' ? 'concluído' : 'rascunho'}${mudou.length ? `. ${mudou.join(', ')}` : ''}`);
+    salvar(); fecharModal(); render(); toast(acao === 'concluir' ? 'Boletim concluído' : 'Rascunho salvo');
+  });
+}
+/* ---- Boletim na ficha do aluno (uso dos professores) ---- */
+const ehKidsMod = a => (a.mods || []).includes('kids');
+function viewBoletimAluno(a){
+  const cicloAtual = (S.config.boletimEntrega || hoje()).slice(0, 7);
+  const cs = Object.keys(S.pedag.boletins).filter(c => (S.pedag.boletins[c] || {})[a.id]).sort().reverse();
+  const atual = (S.pedag.boletins[cicloAtual] || {})[a.id];
+  const notas = Object.values((S.pedag.notas || {})[a.id] || {}).sort((x, y) => y.data.localeCompare(x.data));
+  const dt = iso => { const d = new Date(iso); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const ge = eduDe(a), tel = a.telResp || a.telefone;
+  const medias = cs.slice().reverse().map(c => ({c, m:mediaBol(S.pedag.boletins[c][a.id])})).filter(x => x.m);
+  const stEdu = v => v === 'conquistado' ? '<span class="tag ok">Conquistado</span>' : v === 'perdeu' ? '<span class="tag red">Perdeu</span>' : '<span class="tag">Em desenvolvimento</span>';
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+      <div><h3>Boletim de ${nomeMes(cicloAtual)}</h3><p class="muted small" style="margin:4px 0 0">${atual ? (atual.concluido ? '<span class="tag ok">Concluído</span>' : '<span class="tag warn">Rascunho</span>') : '<span class="tag">Ainda não preenchido</span>'}${S.config.boletimEntrega ? ` Entrega em ${fmtBR(S.config.boletimEntrega)}.` : ''}</p></div>
+      <button class="btn primary" data-act="bol-edit" data-id="${a.id}" data-c="${cicloAtual}">${atual ? (atual.concluido ? 'Editar boletim' : 'Continuar preenchendo') : 'Preencher boletim'}</button></div>
+    <h3 style="margin:16px 0 8px;font-size:17px">Graus educacionais atuais</h3>
+    <div class="checks">${EDU.map(g => `<span class="check" style="cursor:default"><i class="dot" style="background:${g.cor};width:12px;height:12px"></i>${g.nome.replace('Grau ', '')}: ${ge[g.id] ? '<strong style="color:var(--ok)">conquistado</strong>' : '<span class="muted">em desenvolvimento</span>'}</span>`).join('')}</div></div>
+  <div class="panel"><h3 style="margin-bottom:4px">Anotações dos professores</h3>
+    <p class="muted small" style="margin:0 0 10px">Uso interno da equipe: não saem na impressão nem na mensagem aos pais. Registre o que acontecer entre um boletim e outro, para lembrar na hora de avaliar.</p>
+    <textarea id="notaTxt" placeholder="Ex.: chegou atrasado de novo; conversei com a mãe sobre o horário da escola"></textarea>
+    <button class="btn ghost" style="margin-top:8px" data-act="nota-add" data-id="${a.id}">Adicionar anotação</button>
+    <div class="list" style="margin-top:12px">${notas.length ? notas.map(n => `<div class="row" style="cursor:default;align-items:flex-start"><span class="grow"><span style="display:block;white-space:pre-wrap">${esc(n.texto)}</span><span class="meta">${dt(n.data)}, ${esc(n.por)}</span></span>${isAdmin() || n.por === quem() ? `<button class="btn small danger" data-act="nota-del" data-id="${a.id}" data-n="${n.id}">Apagar</button>` : ''}</div>`).join('') : '<div class="empty">Nenhuma anotação ainda.</div>'}</div></div>
+  ${medias.length > 1 ? `<div class="panel"><h3 style="margin-bottom:8px">Evolução da disciplina e postura</h3>${medias.map(x => `<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--line)"><span>${nomeMes(x.c)}</span><span><span style="color:#E0A100;letter-spacing:1px">${estrelas(Math.round(x.m))}</span> <strong>${x.m.toFixed(1)}</strong></span></div>`).join('')}</div>` : ''}
+  <h2 style="margin-top:6px">Histórico de boletins</h2>
+  ${cs.length ? cs.map(c => { const b = S.pedag.boletins[c][a.id];
+    return `<div class="panel"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+      <div><h3>${nomeMes(c)}</h3><p class="muted small" style="margin:4px 0 0">${b.concluido ? '<span class="tag ok">Concluído</span>' : '<span class="tag warn">Rascunho</span>'} ${[b.prof ? `por ${esc(b.prof)}` : '', b.data ? fmtBR(b.data) : '', mediaBol(b) ? `média ${mediaBol(b).toFixed(1)} de 5` : ''].filter(Boolean).join(', ')}</p></div>
+      <span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small ghost" data-act="bol-edit" data-id="${a.id}" data-c="${c}">Editar</button><button class="btn small ghost" data-act="bol-print" data-id="${a.id}" data-c="${c}">Imprimir</button>${tel && b.concluido ? `<a class="btn small ghost" href="${waLink(tel, msgBoletim(a, b, c))}" target="_blank" rel="noopener">Enviar aos pais</a>` : ''}</span></div>
+      <div class="grid2" style="gap:0 24px;margin-top:10px"><div>${CRIT_BOL.map(([k, t]) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:15px"><span>${t}</span><span style="color:#E0A100;letter-spacing:1px">${estrelas((b.notas || {})[k])}</span></div>`).join('')}</div>
+      <div>${EDU.map(g => `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:15px"><span><i class="dot" style="background:${g.cor}"></i> ${g.nome}</span>${stEdu((b.edu || {})[g.id])}</div>`).join('')}</div></div>
+      ${b.consid ? `<p style="margin:12px 0 0"><strong>Considerações do professor:</strong> ${esc(b.consid)}</p>` : ''}
+      ${b.obsPais ? `<p style="margin:8px 0 0"><strong>Observações dos pais:</strong> ${esc(b.obsPais)}</p>` : ''}
+      ${b.interno ? `<p style="margin:8px 0 0;background:var(--warn-soft);padding:8px 10px;border-radius:8px"><span class="tag warn">Interno</span> ${esc(b.interno)}</p>` : ''}
+    </div>`; }).join('') : '<div class="empty">Nenhum boletim preenchido ainda para este aluno.</div>'}`;
+}
+
+function htmlBoletim(a, b, ciclo){
+  const g = EDU.map(x => { const v = (b.edu || {})[x.id]; return `<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${x.cor};margin-right:6px"></span><b>${x.nome.replace('Grau ', 'Grau ').toUpperCase()}</b><br><small>${x.desc}</small></td><td style="text-align:right;white-space:nowrap">${v === 'conquistado' ? '✔ Conquistado' : v === 'perdeu' ? 'Perdeu' : 'Em desenvolvimento'}</td></tr>`; }).join('');
+  return `<section class="pg"><header><div><div class="sba">Sylvio Behring Association</div><h1>Boletim do Jiu-Jitsu Infantil</h1><div class="sub">Sistema Progressivo de Jiu-Jitsu · ${esc(S.config.academia || 'Academia SAFE')}</div></div><div class="mes">${nomeMes(ciclo).toUpperCase()}</div></header>
+  <h2>Dados do aluno(a)</h2><table class="d"><tr><td>Nome</td><td>${esc(a.nome)}</td></tr><tr><td>Data de nascimento</td><td>${fmtBR(a.nascimento)}</td></tr><tr><td>Escolaridade</td><td>${esc(a.escolaridade || '')}</td></tr>
+  <tr><td>Graduação atual</td><td>${esc(faixa(a.faixa).nome)}${a.graus ? `, ${a.graus} grau(s)` : ''}</td></tr><tr><td>Começou a treinar em</td><td>${a.dataMatricula ? `${a.dataMatricula.slice(5, 7)}/${a.dataMatricula.slice(0, 4)}` : ''}</td></tr>
+  <tr><td>Observações de saúde</td><td>${esc(a.saude || '')}</td></tr><tr><td>Objetivos com o jiu-jitsu</td><td>${esc(a.objetivos || '')}</td></tr></table>
+  <h2>Dados do responsável</h2><table class="d"><tr><td>Nome</td><td>${esc(a.responsavel || '')}</td></tr><tr><td>Telefone</td><td>${esc(a.telResp || '')}</td></tr></table>
+  <h2>Disciplina e postura</h2><table class="n">${CRIT_BOL.map(([k, t]) => `<tr><td>${t}</td><td class="st">${estrelas((b.notas || {})[k])}</td></tr>`).join('')}</table>
+  <h2>Graus educacionais</h2><table class="n">${g}</table>
+  <h2>Considerações do professor</h2><div class="box">${esc(b.consid || '')}</div>
+  <h2>Observações adicionais dos pais</h2><div class="box">${esc(b.obsPais || '')}</div>
+  <footer><div><div class="linha"></div>${esc(b.prof || '')}<br><small>Professor / instrutor</small></div><div><div class="linha"></div><br><small>Responsável</small></div></footer></section>`;
+}
+function imprimirBoletins(lista, ciclo){
+  if (!lista.length) return toast('Nenhum boletim preenchido para imprimir.');
+  const w = window.open('', '_blank');
+  if (!w) return toast('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.');
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Boletins ${nomeMes(ciclo)}</title><style>
+    @page{size:A4;margin:14mm} body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0} .pg{page-break-after:always;max-width:720px;margin:0 auto 24px}
+    header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #C8102E;padding-bottom:8px;margin-bottom:10px}
+    .sba{font-size:12px;color:#555} h1{margin:2px 0;color:#C8102E;font-size:24px} .sub{font-size:12px;color:#555} .mes{font-weight:bold;font-size:14px}
+    h2{font-size:14px;color:#C8102E;margin:14px 0 6px;text-transform:uppercase} table{width:100%;border-collapse:collapse;font-size:13px} td{padding:5px 6px;border-bottom:1px solid #ddd;vertical-align:top}
+    .d td:first-child{width:38%;color:#555} .st{text-align:right;font-size:18px;color:#E0A100;letter-spacing:2px} .box{border:1px solid #ccc;min-height:60px;padding:8px;font-size:13px;white-space:pre-wrap}
+    footer{display:flex;gap:40px;margin-top:34px;font-size:13px;text-align:center} footer>div{flex:1} .linha{border-top:1px solid #333;margin-bottom:4px;height:28px}
+  </style></head><body>${lista.map(([a, b]) => htmlBoletim(a, b, ciclo)).join('')}<script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+  w.document.close();
+}
+function msgBoletim(a, b, ciclo){
+  const conq = EDU.filter(g => (b.edu || {})[g.id] === 'conquistado').map(g => g.nome.replace('Grau ', ''));
+  return `Olá! Segue o resumo do boletim de ${a.nome.split(' ')[0]} na SAFE (${nomeMes(ciclo)}):\n` + CRIT_BOL.map(([k, t]) => `${t}: ${estrelas((b.notas || {})[k])}`).join('\n') +
+    `\nGraus educacionais conquistados: ${conq.length ? conq.join(', ') : 'nenhum ainda'}.` + (b.consid ? `\nProfessor: ${b.consid}` : '') + `\nQualquer dúvida, estamos à disposição. Oss!`;
+}
+function painelBoletinsAluno(a){
+  const cs = Object.keys(S.pedag.boletins).filter(c => S.pedag.boletins[c][a.id]).sort().reverse();
+  if (!cs.length) return '';
+  return `<div class="panel"><h3 style="margin-bottom:8px">Boletins infantis</h3><div class="list">${cs.map(c => { const b = S.pedag.boletins[c][a.id]; const tel = a.telResp || a.telefone;
+    return `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="grow" style="min-width:180px"><span class="name" style="display:block">${nomeMes(c)} ${b.concluido ? '' : '<span class="tag warn">Rascunho</span>'}</span><span class="meta">${estrelas(Math.round(mediaBol(b)))} ${EDU.map(g => (b.edu || {})[g.id] === 'conquistado' ? `<i class="dot" style="background:${g.cor}" title="${g.nome}"></i>` : '').join('')}${b.prof ? ` ${esc(b.prof)}` : ''}</span>${b.consid ? `<span class="small" style="display:block">${esc(b.consid)}</span>` : ''}</span>
+      <span style="display:flex;gap:6px"><button class="btn small ghost" data-act="bol-print" data-id="${a.id}" data-c="${c}">Imprimir</button>${tel ? `<a class="btn small ghost" href="${waLink(tel, msgBoletim(a, b, c))}" target="_blank" rel="noopener">Enviar aos pais</a>` : ''}</span></div>`; }).join('')}</div></div>`;
 }
 
 /* ============ Crescimento: retenção, experimentais e marketing ============ */
@@ -2157,7 +2338,7 @@ function cresPautas(){
     ps.push({data:c.data, tipo:'Medalha', a, txt:`${i.resultado === 'ouro' ? 'Ouro' : i.resultado === 'prata' ? 'Prata' : 'Bronze'} para a SAFE! ${pn(a)} subiu ao pódio no ${c.nome}${i.categoria ? `, categoria ${i.categoria}` : ''}. Orgulho da equipe! Oss!`}); }); });
   ps.sort((a, b) => b.data.localeCompare(a.data));
   const semAut = Object.values(S.alunos).filter(a => a.status === 'ativo' && !a.consImagem).length;
-  return `<p class="muted small">Histórias reais dos últimos 14 dias (e aniversários da próxima semana) para postar. Só aparecem alunos que autorizaram o uso de imagem${semAut ? `; ${semAut} aluno(s) ativo(s) ainda sem essa autorização` : ''}. Os textos são sugestões: adapte ao seu jeito e acrescente #SAFEJiuJitsu #JiuJitsu #DefesaPessoal.</p>
+  return `<p class="muted small">Histórias reais dos últimos 14 dias (e aniversários da próxima semana) para postar. Só aparecem alunos que autorizaram o uso de imagem${semAut ? `; ${semAut} aluno(s) ativo(s) ainda sem essa autorização` : ''}. Os textos são sugestões no padrão da cartilha de redes sociais da SBA: linguagem profissional, marcar <strong>@sbajiujitsu</strong> em colaboração sempre que possível e terminar com uma chamada para ação (por exemplo, "Agende sua aula experimental gratuita"). Hashtags sugeridas: #SBA #SistemaProgressivoDeJiuJitsu #JiuJitsu #DefesaPessoal.</p>
   <div class="list">${ps.length ? ps.map((p, i) => `<div class="row" style="cursor:default;flex-wrap:wrap;align-items:flex-start"><span class="grow" style="min-width:220px"><span class="meta"><span class="tag">${p.tipo}</span> ${fmtBR(p.data)}, <a href="#/aluno/${p.a.id}">${esc(p.a.nome)}</a></span><span style="display:block;margin-top:4px" id="pauta${i}">${esc(p.txt)}</span></span><button class="btn small ghost" data-act="copiar-pauta" data-i="${i}">Copiar texto</button></div>`).join('') : '<div class="empty">Nenhuma história nova nos últimos 14 dias. Graduações, medalhas, marcos de treino e novos alunos aparecem aqui automaticamente.</div>'}</div>`;
 }
 
@@ -2261,7 +2442,7 @@ async function criarPerfil(u){
 function pararDados(){ subsDados.forEach(f => f()); subsDados = []; pronto = false; R = {}; }
 function iniciarDados(){
   pararDados(); render();
-  const paths = ['config','alunos','presencas','campeonatos','crescimento', ...(isAdmin() ? ['configFin','alunosFin','financeiro','lixeira','historico'] : [])];
+  const paths = ['config','alunos','presencas','campeonatos','crescimento','pedagogico', ...(isAdmin() ? ['configFin','alunosFin','financeiro','lixeira','historico'] : [])];
   const carregado = {};
   paths.forEach(p => {
     const ref = db.ref(p);
@@ -2284,6 +2465,7 @@ function reconstruir(){
   if (R.configFin) Object.assign(S.config, JSON.parse(JSON.stringify(R.configFin)));
   S.alunos = alunos; S.presencas = JSON.parse(JSON.stringify(R.presencas || {})); S.campeonatos = JSON.parse(JSON.stringify(R.campeonatos || {}));
   S.fin = JSON.parse(JSON.stringify(R.financeiro || {}));
+  S.pedag = {boletins:JSON.parse(JSON.stringify((R.pedagogico || {}).boletins || {})), notas:JSON.parse(JSON.stringify((R.pedagogico || {}).notas || {}))};
   const rc = R.crescimento || {}; S.cres = {exp:JSON.parse(JSON.stringify(rc.experimentais || {})), nps:JSON.parse(JSON.stringify(rc.nps || {}))};
   if (isAdmin()){ S.lixeira = JSON.parse(JSON.stringify(R.lixeira || {})); S.log = JSON.parse(JSON.stringify(R.historico || {})); }
   normalizar(); _idx = null;
@@ -2323,6 +2505,8 @@ function mapear(){
   Object.values(S.campeonatos).forEach(c => achatar(m, 'campeonatos/' + c.id, c, 1));
   Object.entries(S.cres.exp).forEach(([id, v]) => achatar(m, 'crescimento/experimentais/' + id, v, 1));
   Object.entries(S.cres.nps).forEach(([id, v]) => achatar(m, 'crescimento/nps/' + id, v, 0));
+  Object.entries(S.pedag.notas || {}).forEach(([aid, ns]) => Object.entries(ns || {}).forEach(([nid, v]) => achatar(m, `pedagogico/notas/${aid}/${nid}`, v, 0)));
+  Object.entries(S.pedag.boletins).forEach(([c, regs]) => Object.entries(regs || {}).forEach(([id, v]) => achatar(m, `pedagogico/boletins/${c}/${id}`, v, 1)));
   return m;
 }
 function salvarOnline(){
@@ -2485,6 +2669,7 @@ function carregarExemplo(){
     S.alunos[id] = {id, nome, nascimento:nasc, sexo, mods, faixa:'branca', graus:1, dataFaixa:dm, dataMatricula:dm, status:'inativo', plano:mods[0] === 'mt' ? 'p4' : 'p1', vencimento:10, telefone:`2197${String(3000000 + i * 1234).slice(0,7)}`, canal, consImagem:true,
       historicoStatus:[{data:ds, status:'inativo', anterior:'ativo', motivo, por:'Exemplo'}], historico:[{id:uid(), tipo:'faixa', faixa:'branca', graus:0, data:dm, obs:'Exemplo'}]};
   });
+  [[11, {amarelo:true, azul:true, vermelho:true, verde:true}], [12, {amarelo:true, azul:true}], [13, {amarelo:true}], [15, {amarelo:true, azul:true, vermelho:true}]].forEach(([i, e]) => { S.alunos[ids[i].id].grausEdu = e; });
   const la = S.alunos[ids[0].id]; la.historico.push({id:uid(), tipo:'grau', faixa:la.faixa, graus:3, data:addDias(h, -3), prof:'Rodrigo', obs:''}); la.graus = 3;
   [['Marcos Lima','jj',-20,'matriculou','Instagram'],['Bianca Rocha','mt',-12,'compareceu','Google'],['Tiago Reis','jj',-9,'nao_fechou','Instagram'],['Sofia Nunes','kids',-5,'compareceu','Indicação de aluno'],['Caio Prado','nogi',-2,'faltou','Passei em frente à academia'],['Lara Mota','jj',0,'agendada','Instagram'],['Otávio Luz','kids',3,'agendada','Indicação de aluno']].forEach(([nome, md, d, st, canal], i) => {
     const id = uid() + 'e' + i; S.cres.exp[id] = {id, nome, telefone:`2196${String(4000000 + i * 777).slice(0,7)}`, mod:md, data:addDias(h, d), hora:'', status:st, canal, indicadoPor: canal === 'Indicação de aluno' ? 'Lucas Andrade' : '', obs:''};
@@ -2541,6 +2726,13 @@ document.addEventListener('click', e => {
     'rosto-ficha': () => cadastrarRosto(id, S.alunos[id].foto),
     'rosto-apagar': async () => { if (await confirmar('Apagar os dados faciais deste aluno? Ele deixa de ser reconhecido na chamada por foto.', 'Apagar')){ delete S.alunos[id].rosto; salvar(); render(); toast('Dados faciais apagados'); } },
     'fr-ok': () => confirmarFotoChamada(),
+    'bol-edit': () => formBoletim(id, el.dataset.c),
+    'fichaTab': () => { ui.fichaTab = el.dataset.v; render(); },
+    'nota-add': () => { const t = ($('#notaTxt') || {}).value || ''; if (!t.trim()) return toast('Escreva a anotação primeiro.'); const nid = uid(); ((S.pedag.notas ||= {})[id] ||= {})[nid] = {id:nid, data:new Date().toISOString(), por:quem(), texto:t.trim()}; registrar(`Anotação de professor no boletim de ${S.alunos[id]?.nome || ''}`); salvar(); render(); toast('Anotação salva'); },
+    'nota-del': async () => { if (await confirmar('Apagar esta anotação?', 'Apagar')){ delete ((S.pedag.notas || {})[id] || {})[el.dataset.n]; registrar(`Apagou anotação do boletim de ${S.alunos[id]?.nome || ''}`); salvar(); render(); } },
+    'bol-print': () => { const c = el.dataset.c, b = (S.pedag.boletins[c] || {})[id]; if (b) imprimirBoletins([[S.alunos[id], b]], c); },
+    'bol-print-todos': () => { const c = ui.bolCiclo || (S.config.boletimEntrega || hoje()).slice(0, 7), regs = S.pedag.boletins[c] || {};
+      imprimirBoletins(Object.entries(regs).filter(([aid, b]) => b.concluido && S.alunos[aid] && true).map(([aid, b]) => [S.alunos[aid], b]).sort((x, y) => x[0].nome.localeCompare(y[0].nome, 'pt-BR')), c); },
     'cresTab': () => { ui.cresTab = el.dataset.v; render(); },
     'exp-edit': () => formExp(id),
     'exp-st': () => { const x = S.cres.exp[id]; x.status = el.dataset.v; registrar(`Aula experimental de ${x.nome}: ${ST_EXP[x.status][0].toLowerCase()}`); salvar(); render(); },
@@ -2623,7 +2815,7 @@ document.addEventListener('click', e => {
       abrirModal(`<h2>Restaurar backup</h2><p class="muted small">Cole o texto do backup. Isso substitui os dados atuais deste navegador.</p><textarea id="txtImp" style="min-height:200px"></textarea><div class="actions"><button class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" data-act="importar-ok">Restaurar</button></div>`);
     },
     'importar-ok': () => {
-      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta, logAnt = S.log, lixAnt = S.lixeira; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, fin:o.fin || {}, cres:o.cres || {}, log:logAnt, lixeira:lixAnt, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); registrar('Restaurou um backup'); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
+      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta, logAnt = S.log, lixAnt = S.lixeira; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, fin:o.fin || {}, cres:o.cres || {}, pedag:o.pedag || {}, log:logAnt, lixeira:lixAnt, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); registrar('Restaurou um backup'); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
       catch(err){ toast('Texto de backup inválido. Copie o backup completo e tente de novo.'); }
     }
   };
@@ -2647,6 +2839,9 @@ document.addEventListener('change', e => {
   else if (t.id === 'rankPer'){ ui.rankPer = t.value; renderDepois(); }
   else if (t.id === 'rankMod'){ ui.rankMod = t.value; renderDepois(); }
   else if (t.id === 'gradFiltro'){ ui.gradFiltro = t.value; renderDepois(); }
+  else if (t.id === 'bolCiclo'){ ui.bolCiclo = t.value; renderDepois(); }
+  else if (t.id === 'bolTurma'){ ui.bolTurma = t.value; renderDepois(); }
+  else if (t.id === 'bolEnt'){ S.config.boletimEntrega = t.value; ui.bolCiclo = t.value ? t.value.slice(0, 7) : ui.bolCiclo; registrar(`Definiu a entrega do boletim infantil para ${fmtBR(t.value)}`); salvar(); renderDepois(); }
   else if (t.id === 'cresMes'){ ui.cresMes = t.value || hoje().slice(0, 7); renderDepois(); }
   else if (t.id === 'profMes'){ ui.profMes = t.value || hoje().slice(0, 7); renderDepois(); }
   else if (t.id === 'profAula'){ const [, d, tid] = rota(); const v = t.value.trim(); S.meta.ultimoProf = v || S.meta.ultimoProf; const k = `${d}_${tid}`; if (S.presencas[k]){ if (v) S.presencas[k].prof = v; else delete S.presencas[k].prof; } if (!ONLINE) salvar(); else salvar(); }
@@ -2673,6 +2868,7 @@ document.addEventListener('change', e => {
   else if (t.dataset.modFaixa !== undefined){ S.config.modalidades[Number(t.dataset.modFaixa)].faixa = t.checked; registrar('Alterou ajustes: modalidades'); salvar(); }
   else if (t.id === 'logBusca'){ ui.logBusca = t.value; ui.logN = 100; renderDepois(); }
   else if (t.hasAttribute('data-facial')){ S.config.facial = t.checked; salvar(); }
+  else if (t.hasAttribute('data-exigir-edu')){ S.config.exigirEdu = t.checked; registrar('Alterou ajustes: graus educacionais'); salvar(); }
   else if (t.hasAttribute('data-exigir-graus')){ S.config.exigirGraus = t.checked; salvar(); }
   else if (t.dataset.planoMod !== undefined){
     const p = S.config.planos[Number(t.dataset.planoMod)];
