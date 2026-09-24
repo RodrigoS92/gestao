@@ -390,6 +390,8 @@ function normalizar(){
   Object.values(S.presencas).forEach(x => { x.alunos ||= {}; });
   S.fin ||= {}; ['mensalidades','lancamentos','vendas','produtos'].forEach(k => { S.fin[k] ||= {}; });
   S.log ||= {}; S.lixeira ||= {};
+  S.cres ||= {}; S.cres.exp ||= {}; S.cres.nps ||= {};
+  Object.values(S.alunos).forEach(a => { if (!a.canal){ const mm = String(a.obs || '').match(/Conheceu a SAFE por: ([^.]+)/); if (mm) a.canal = canalDe(mm[1]); } });
   Object.values(S.alunos).forEach(a => { a.historicoStatus = arr(a.historicoStatus); });
   S.config.inicioFinanceiro ??= Object.keys(S.fin.mensalidades).sort()[0] || hoje().slice(0, 7);
   limparAntigos();
@@ -444,11 +446,12 @@ const ICON = {
   presenca:'<rect x="4" y="4" width="16" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 2.5v3M16 2.5v3M8.5 13l2.5 2.5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   graduacoes:'<path d="M2 10h20v4H2z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 10v4M17 10v4M10 14l-2 7M12 14l2 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   financeiro:'<rect x="2.5" y="6" width="19" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 9.5v5M18 9.5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  crescimento:'<path d="M3 17l6-6 4 4 8-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h6v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   competicao:'<circle cx="12" cy="15" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 10.5L5 3h4l3 6 3-6h4l-3.5 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
   mais:'<circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
 };
-const NAV = [['inicio','Início'],['alunos','Alunos'],['presenca','Presença'],['graduacoes','Graduação','Faixas'],['competicao','Competição','Lutas'],['financeiro','Financeiro','Finanças'],['mais','Ajustes']];
-const ui = {busca:'', fMod:'', fStatus:'ativo', gradFiltro:'todos', gradTab:'alunos', presTab:'chamada', presData:hoje(), rankPer:'mes', rankMod:'', maisTab:'grade', chamadaBusca:'', compTab:'atletas', compEdit:false, sim:{sexo:'Masculino', ano:1995, peso:75}, golpe:{idade:25, faixa:'branca', formato:'gi', divisao:'adulto'}, finTab:'resumo', finMes:hoje().slice(0, 7), finFiltro:'todos', finMod:'', finSt:'pendentes', profMes:hoje().slice(0, 7)};
+const NAV = [['inicio','Início'],['alunos','Alunos'],['presenca','Presença'],['graduacoes','Graduação','Faixas'],['competicao','Competição','Lutas'],['crescimento','Crescimento','Crescer'],['financeiro','Financeiro','Finanças'],['mais','Ajustes']];
+const ui = {busca:'', fMod:'', fStatus:'ativo', gradFiltro:'todos', gradTab:'alunos', presTab:'chamada', presData:hoje(), rankPer:'mes', rankMod:'', maisTab:'grade', chamadaBusca:'', compTab:'atletas', compEdit:false, sim:{sexo:'Masculino', ano:1995, peso:75}, golpe:{idade:25, faixa:'branca', formato:'gi', divisao:'adulto'}, finTab:'resumo', finMes:hoje().slice(0, 7), finFiltro:'todos', finMod:'', finSt:'pendentes', profMes:hoje().slice(0, 7), cresTab:'exp', cresMes:hoje().slice(0, 7)};
 
 function rota(){ const h = location.hash.replace(/^#\/?/, '') || 'inicio'; return h.split('/'); }
 function render(){
@@ -459,7 +462,7 @@ function render(){
   const sec = {aluno:'alunos', chamada:'presenca'}[v] || v;
   $('#nav').innerHTML = NAV.filter(([id]) => id !== 'financeiro' || isAdmin()).map(([id, nome, curto]) => `<a href="#/${id}" class="${sec === id ? 'on' : ''}" ${sec === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg><span class="lg">${nome}</span><span class="sm" aria-hidden="true">${curto || nome}</span></a>`).join('');
   $('#papel').textContent = (ONLINE && S.meta.nome ? S.meta.nome + ', ' : '') + (isAdmin() ? 'administrador' : 'professor');
-  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, competicao:viewCompeticao, financeiro:viewFinanceiro, mais:viewMais};
+  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, competicao:viewCompeticao, crescimento:viewCrescimento, financeiro:viewFinanceiro, mais:viewMais};
   try { $('#main').innerHTML = (views[v] || viewInicio)(...args); }
   catch(err){ console.error(err); $('#main').innerHTML = `<div class="notice">Esta tela não abriu por um erro inesperado. Volte e tente de novo. Se continuar, envie esta mensagem ao suporte: ${esc(err && err.message)}</div>`; return; }
   const after = {alunos:listaAlunos, chamada:() => listaChamada(args[0], args[1]), competicao:simAtualiza}[v];
@@ -495,6 +498,7 @@ function viewInicio(){
     <a class="num" href="#/graduacoes" data-act="grad-aptos"><strong>${aptos}</strong><span>aptos a trocar de faixa</span></a>
     <a class="num" href="#/presenca" data-act="ver-sumidos"><strong>${sumidos}</strong><span>sem treinar há 14+ dias</span></a>
   </div>
+  ${(() => { const ex = Object.values(S.cres.exp).filter(x => x.data === h && x.status === 'agendada'); return ex.length ? `<h2>Aulas experimentais hoje</h2><div class="list" style="margin-bottom:26px">${ex.map(x => `<a class="row" href="#/crescimento" data-act="cres-exp"><span class="grow"><span class="name" style="display:block">${esc(x.nome)}</span><span class="meta">${x.hora || ''} ${esc(mod(x.mod)?.nome || '')}${x.canal ? `, ${esc(x.canal)}` : ''}</span></span><span class="tag">Agendada</span></a>`).join('')}</div>` : ''; })()}
   <h2>Por modalidade</h2>
   <div class="list" style="margin-bottom:26px">
     ${S.config.modalidades.map(m => `<div class="row" style="cursor:default"><i class="dot" style="background:${m.cor}"></i><span class="grow name">${esc(m.nome)}</span><strong>${ativos.filter(a => (a.mods || []).includes(m.id)).length}</strong></div>`).join('')}
@@ -606,8 +610,8 @@ function viewAluno(id){
   ${isAdmin() ? `<button class="btn danger" data-act="excluir-aluno" data-id="${id}">Excluir aluno</button>` : ''}`;
 }
 
-function formAluno(id){
-  const a = id ? S.alunos[id] : {status:'ativo', dataMatricula:hoje(), faixa:'branca', graus:0, dataFaixa:hoje(), mods:[], bolsa:'nenhuma'};
+function formAluno(id, pre, aoSalvar){
+  const a = id ? S.alunos[id] : {status:'ativo', dataMatricula:hoje(), faixa:'branca', graus:0, dataFaixa:hoje(), mods:[], bolsa:'nenhuma', ...(pre || {})};
   const opt = (v, t, sel) => `<option value="${v}" ${sel ? 'selected' : ''}>${t}</option>`;
   abrirModal(`
   <form id="fAluno">
@@ -628,7 +632,10 @@ function formAluno(id){
         <div class="field"><label for="cpf">CPF</label><input type="text" id="cpf" name="cpf" inputmode="numeric" value="${esc(a.cpf)}"></div>
         <div class="field"><label for="status">Situação</label><select id="status" name="status" data-original="${esc(a.status)}">${opt('novo','Novo cadastro (revisar)',a.status === 'novo')}${opt('ativo','Ativo',a.status === 'ativo')}${opt('trancado','Trancado',a.status === 'trancado')}${opt('inativo','Inativo',a.status === 'inativo')}</select></div>
       </div>
-      <div class="field" id="boxDataStatus" style="display:none;max-width:280px"><label for="dataStatus">Mudança de situação vale a partir de</label><input type="date" id="dataStatus" name="dataStatus" value="${hoje()}"></div>
+      <div id="boxDataStatus" style="display:none"><div class="grid2">
+        <div class="field"><label for="dataStatus">Mudança de situação vale a partir de</label><input type="date" id="dataStatus" name="dataStatus" value="${hoje()}"></div>
+        <div class="field" id="boxMotivo"><label for="motivo">Motivo da saída *</label><select id="motivo" name="motivo"><option value="">Selecione</option>${MOTIVOS.map(m => `<option>${m}</option>`).join('')}</select></div></div>
+        <div class="field" id="boxMotivoObs"><label for="motivoObs">Detalhe do motivo (opcional)</label><input type="text" id="motivoObs" name="motivoObs" placeholder="Ex.: mudou de turno no trabalho"></div></div>
     </fieldset>
     <fieldset><legend>Contato</legend>
       <div class="grid2">
@@ -649,6 +656,7 @@ function formAluno(id){
         <div class="field"><label for="dm">Data de matrícula</label><input type="date" id="dm" name="dataMatricula" value="${esc(a.dataMatricula)}"></div>
         <div class="field"><label for="ind">Indicado por</label><input type="text" id="ind" name="indicadoPor" list="dlAlunos" value="${esc(a.indicadoPor)}"><datalist id="dlAlunos">${Object.values(S.alunos).map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist></div>
       </div>
+      <div class="field" style="max-width:320px"><label for="canal">Como conheceu a SAFE</label><select id="canal" name="canal">${opt('', 'Selecione')}${CANAIS.map(c => opt(c, c, a.canal === c)).join('')}</select></div>
       ${id ? '' : `<div class="grid3">
         <div class="field"><label for="fx">Faixa atual</label><select id="fx" name="faixa">${S.config.faixas.map(f => opt(f.id, esc(f.nome), a.faixa === f.id)).join('')}</select></div>
         <div class="field"><label for="gr">Graus</label><input type="number" min="0" max="10" id="gr" name="graus" value="${a.graus || 0}"></div>
@@ -691,7 +699,10 @@ function formAluno(id){
   });
   const orig = id && S.alunos[id] ? JSON.parse(JSON.stringify(S.alunos[id])) : null;
   const selSt = $('#status'), boxSt = $('#boxDataStatus');
-  selSt.addEventListener('change', () => { boxSt.style.display = id && selSt.value !== selSt.dataset.original ? '' : 'none'; });
+  selSt.addEventListener('change', () => {
+    const mudou = id && selSt.value !== selSt.dataset.original, saida = ['inativo','trancado'].includes(selSt.value);
+    boxSt.style.display = mudou ? '' : 'none'; $('#boxMotivo').style.display = saida ? '' : 'none'; $('#boxMotivoObs').style.display = saida ? '' : 'none';
+  });
   let enviando = false;
   $('#fAluno').addEventListener('submit', async e => {
     e.preventDefault(); if (enviando) return;
@@ -699,7 +710,8 @@ function formAluno(id){
     for (const [k, v] of fd.entries()) if (k !== 'mods') o[k] = typeof v === 'string' ? v.trim() : v;
     o.mods = fd.getAll('mods');
     o.consImagem = fd.has('consImagem'); o.consBio = S.config.facial ? fd.has('consBio') : !!(id && S.alunos[id] && S.alunos[id].consBio); o.atleta = fd.has('atleta');
-    const dataStatus = o.dataStatus || hoje(); delete o.dataStatus;
+    const dataStatus = o.dataStatus || hoje(), motivo = o.motivo || '', motivoObs = o.motivoObs || ''; delete o.dataStatus; delete o.motivo; delete o.motivoObs;
+    if (id && orig && o.status !== orig.status && ['inativo','trancado'].includes(o.status) && !motivo) return toast('Informe o motivo da saída. Ele alimenta o painel de retenção.');
     o.nome = (o.nome || '').replace(/\s+/g, ' ');
     if (!o.nome) return toast('Informe o nome do aluno.');
     if (!o.nascimento || o.nascimento > hoje()) return toast('Informe uma data de nascimento válida.');
@@ -729,13 +741,16 @@ function formAluno(id){
       });
       if (!o.consBio) delete a.rosto;
       if (antigo !== o.status){
-        a.historicoStatus = [...(a.historicoStatus || []), {data:dataStatus, status:o.status, anterior:antigo, por:quem()}];
-        registrar(`Situação de ${a.nome}: ${antigo} para ${o.status} (a partir de ${fmtBR(dataStatus)})`);
+        const ent = {data:dataStatus, status:o.status, anterior:antigo, por:quem()};
+        if (['inativo','trancado'].includes(o.status)){ ent.motivo = motivo; if (motivoObs) ent.motivoObs = motivoObs; }
+        a.historicoStatus = [...(a.historicoStatus || []), ent];
+        registrar(`Situação de ${a.nome}: ${antigo} para ${o.status} (a partir de ${fmtBR(dataStatus)})${motivo && ent.motivo ? `, motivo: ${motivo}` : ''}`);
       } else registrar(`Editou a ficha de ${a.nome}`);
     } else {
       const nid = uid(); o.graus = Number(o.graus) || 0;
       S.alunos[nid] = {...o, id:nid, historicoStatus:[], historico:[{id:uid(), tipo:'faixa', faixa:o.faixa, graus:o.graus, data:o.dataFaixa || hoje(), obs:'Faixa no cadastro'}]};
       registrar(`Cadastrou o aluno ${o.nome}`);
+      if (aoSalvar) aoSalvar(nid);
       location.hash = `#/aluno/${nid}`;
     }
     salvar(); fecharModal(); render(); toast(id ? 'Alterações salvas' : 'Aluno cadastrado');
@@ -1386,7 +1401,7 @@ function importarForms(txt){
     S.alunos[id] = {id, nome:nomeFmt, nascimento:nasc, telefone:g(cTel).replace(/[^\d+]/g, ''), status:'novo',
       responsavel: crianca && !vazio(g(cResp)) ? `${g(cResp)}${!vazio(g(cPar)) ? ` (${g(cPar)})` : ''}` : '',
       telResp: crianca && !vazio(g(cTelResp)) ? g(cTelResp).replace(/[^\d+]/g, '') : '',
-      saude, obs, sexo:sx, email:g(cEmail), emergencia:g(cEmerg), indicadoPor: vazio(g(cInd)) ? '' : g(cInd),
+      saude, obs, sexo:sx, canal: canalDe(g(cComo)), email:g(cEmail), emergencia:g(cEmerg), indicadoPor: vazio(g(cInd)) ? '' : g(cInd),
       consImagem: norm(g(cImg)).startsWith('autorizo'), consBio: norm(g(cBio)).startsWith('autorizo'),
       mods: mods.length ? mods : (crianca && nasc && idadeIBJJF(nasc) <= 15 ? ['kids'] : []), faixa:fx, graus:0, dataFaixa:dm, dataMatricula:dm,
       bolsa:'nenhuma', origem:'Google Forms', historico:[{id:uid(), tipo:'faixa', faixa:fx, graus:0, data:dm, obs:'Faixa informada no cadastro'}]};
@@ -1900,7 +1915,7 @@ function finAberto(){
   }).join('') : '<div class="empty">Nenhuma mensalidade em atraso. Tatame limpo!</div>'}</div>`;
 }
 // Backup em arquivo
-function dadosBackup(){ return {config:S.config, alunos:S.alunos, presencas:S.presencas, campeonatos:S.campeonatos, fin:S.fin, geradoEm:new Date().toISOString()}; }
+function dadosBackup(){ return {config:S.config, alunos:S.alunos, presencas:S.presencas, campeonatos:S.campeonatos, fin:S.fin, cres:S.cres, geradoEm:new Date().toISOString()}; }
 function baixarBackup(){
   try {
     const blob = new Blob([JSON.stringify(dadosBackup())], {type:'application/json'});
@@ -1940,6 +1955,259 @@ function painelSeguranca(){
     <input type="search" id="logBusca" placeholder="Buscar por nome, aluno ou ação" value="${esc(ui.logBusca || '')}" style="margin-bottom:10px">
     <div class="list" style="max-height:420px;overflow:auto">${lg.length ? lg.slice(0, ui.logN || 100).map(x => `<div class="row" style="cursor:default"><span class="grow"><span style="display:block">${esc(x.acao)}</span><span class="meta">${dt(x.data)}, ${esc(x.por)}</span></span></div>`).join('') : '<div class="empty">Nenhum registro.</div>'}</div>
     ${lg.length > (ui.logN || 100) ? `<button class="btn small ghost" style="margin-top:8px" data-act="log-mais">Ver mais</button>` : ''}</div>`;
+}
+
+/* ============ Crescimento: retenção, experimentais e marketing ============ */
+const CANAIS = ['Indicação de aluno','Instagram','Google','Passei em frente à academia','Evento ou seminário','Ex-aluno que voltou','Outro'];
+const MOTIVOS = ['Falta de tempo ou horário','Financeiro','Mudou de cidade ou bairro','Lesão ou saúde','Perdeu interesse ou motivação','Insatisfação com a academia','Trabalho ou estudos','Foi para outra academia','Outro'];
+const ST_EXP = {agendada:['Agendada',''], compareceu:['Compareceu','ok'], faltou:['Faltou','red'], matriculou:['Matriculou','ok'], nao_fechou:['Não fechou','warn']};
+function canalDe(txt){
+  const n = norm(txt); if (!n) return '';
+  if (n.includes('indica') || n.includes('amigo')) return 'Indicação de aluno';
+  if (n.includes('insta')) return 'Instagram';
+  if (n.includes('google')) return 'Google';
+  if (n.includes('passei') || n.includes('frente') || n.includes('fachada')) return 'Passei em frente à academia';
+  if (n.includes('evento') || n.includes('seminario')) return 'Evento ou seminário';
+  if (n.includes('ex-aluno') || n.includes('voltou')) return 'Ex-aluno que voltou';
+  return 'Outro';
+}
+const addMesesData = (d, n) => { const x = parseD(d); x.setMonth(x.getMonth() + n); return fmtISO(x); };
+function primeiraAtivacao(a){
+  const h = (a.historicoStatus || []).slice().sort((x, y) => x.data.localeCompare(y.data));
+  const inicial = h.length ? (h[0].anterior || 'ativo') : a.status;
+  if (inicial === 'ativo') return a.dataMatricula || null;
+  const e = h.find(x => x.status === 'ativo'); return e ? e.data : null;
+}
+function ultimaSaida(a){
+  const h = (a.historicoStatus || []).filter(x => ['inativo','trancado'].includes(x.status)).sort((x, y) => x.data.localeCompare(y.data));
+  return h.length ? h[h.length - 1] : null;
+}
+function saidasNoPeriodo(ini, fim){
+  const out = [];
+  Object.values(S.alunos).forEach(a => (a.historicoStatus || []).forEach(x => { if (['inativo','trancado'].includes(x.status) && x.anterior === 'ativo' && x.data >= ini && x.data <= fim) out.push({a, ...x}); }));
+  return out;
+}
+function viewCrescimento(){
+  const tabs = [['exp','Aulas experimentais'],['ret','Retenção'],['origem','Origem e indicações'],['pautas','Pautas para o Instagram'],['reat','Reativação'],['nps','Satisfação (NPS)']];
+  const corpo = {exp:cresExp, ret:cresRet, origem:cresOrigem, pautas:cresPautas, reat:cresReat, nps:cresNps}[ui.cresTab]();
+  return `<div class="head"><h1>Crescimento</h1></div>
+  <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.cresTab === id}" class="${ui.cresTab === id ? 'on' : ''}" data-act="cresTab" data-v="${id}">${t}</button>`).join('')}</div>${corpo}`;
+}
+const pct = (a, b) => b ? `${Math.round(a / b * 100)}%` : '—';
+const cardN = (v, t, cor) => `<div class="num"><strong style="font-size:clamp(18px,4.8vw,26px)${cor ? `;color:${cor}` : ''}">${v}</strong><span>${t}</span></div>`;
+
+/* ---- Aulas experimentais ---- */
+function cresExp(){
+  const m = ui.cresMes, h = hoje(), todas = Object.values(S.cres.exp);
+  const doMes = todas.filter(x => (x.data || '').startsWith(m));
+  const vieram = doMes.filter(x => ['compareceu','matriculou','nao_fechou'].includes(x.status));
+  const matric = doMes.filter(x => x.status === 'matriculou');
+  const proximas = todas.filter(x => x.status === 'agendada' && x.data >= h).sort((a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || '')));
+  const retorno = todas.filter(x => x.status === 'compareceu').sort((a, b) => a.data.localeCompare(b.data));
+  const atrasadas = todas.filter(x => x.status === 'agendada' && x.data < h);
+  const porCanal = {};
+  doMes.forEach(x => { const c = x.canal || 'Não informado'; const o = porCanal[c] ||= {n:0, v:0, m:0}; o.n++; if (vieram.includes(x)) o.v++; if (x.status === 'matriculou') o.m++; });
+  const linha = x => {
+    const md = mod(x.mod), tel = x.telefone, [stT, stC] = ST_EXP[x.status] || ['?', ''];
+    const conf = `Olá, ${(x.nome || '').split(' ')[0]}! Aqui é da SAFE Jiu-Jitsu e Defesa Pessoal. Confirmando sua aula experimental de ${md ? md.nome : ''} no dia ${fmtBR(x.data)}${x.hora ? ` às ${x.hora}` : ''}. Venha com roupa confortável e chegue 10 minutos antes. Te esperamos! Oss!`;
+    const pos = `Olá, ${(x.nome || '').split(' ')[0]}! Tudo bem? Como foi sua aula experimental na SAFE? Ficou alguma dúvida sobre horários ou planos? Será um prazer ter você com a gente no tatame. Oss!`;
+    return `<div class="row" style="cursor:default;flex-wrap:wrap;align-items:flex-start"><span class="grow" style="min-width:200px"><span class="name" style="display:block">${esc(x.nome)}</span>
+      <span class="meta"><span class="tag ${stC}">${stT}</span> ${fmtBR(x.data)}${x.hora ? ` ${x.hora}` : ''}${md ? `, ${esc(md.nome)}` : ''}${x.canal ? `, veio por ${esc(x.canal)}` : ''}${x.indicadoPor ? ` (${esc(x.indicadoPor)})` : ''}</span></span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap">
+        ${x.status === 'agendada' ? `<button class="btn small primary" data-act="exp-st" data-id="${x.id}" data-v="compareceu">Veio</button><button class="btn small ghost" data-act="exp-st" data-id="${x.id}" data-v="faltou">Faltou</button>${tel ? `<a class="btn small ghost" href="${waLink(tel, conf)}" target="_blank" rel="noopener">Confirmar</a>` : ''}` : ''}
+        ${x.status === 'compareceu' ? `<button class="btn small primary" data-act="exp-mat" data-id="${x.id}">Matricular</button><button class="btn small ghost" data-act="exp-st" data-id="${x.id}" data-v="nao_fechou">Não fechou</button>${tel ? `<a class="btn small ghost" href="${waLink(tel, pos)}" target="_blank" rel="noopener">Pós-aula</a>` : ''}` : ''}
+        ${x.status === 'matriculou' && x.alunoId && S.alunos[x.alunoId] ? `<a class="btn small ghost" href="#/aluno/${x.alunoId}">Ver aluno</a>` : ''}
+        <button class="btn small ghost" data-act="exp-edit" data-id="${x.id}">Editar</button></span></div>`;
+  };
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end"><button class="btn primary" data-act="exp-edit">Nova aula experimental</button>
+    <div class="field" style="max-width:200px;margin:0 0 0 auto"><label for="cresMes">Mês dos números</label><input type="month" id="cresMes" value="${m}"></div></div>
+  <div class="numeros" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">${cardN(doMes.length, 'agendadas no mês')}${cardN(`${vieram.length} <span class="muted" style="font-size:.6em">${pct(vieram.length, doMes.filter(x => x.status !== 'agendada').length)}</span>`, 'compareceram')}${cardN(`${matric.length} <span class="muted" style="font-size:.6em">${pct(matric.length, vieram.length)}</span>`, 'matricularam (de quem veio)', 'var(--ok)')}</div>
+  ${atrasadas.length ? `<div class="notice">${atrasadas.length} aula(s) experimental(is) passada(s) ainda marcada(s) como agendada. Informe se a pessoa veio ou faltou para os números ficarem certos.</div>` : ''}
+  <h2>Próximas</h2><div class="list" style="margin-bottom:20px">${[...atrasadas, ...proximas].map(linha).join('') || '<div class="empty">Nenhuma aula experimental agendada.</div>'}</div>
+  <h2>Aguardando decisão</h2><p class="muted small">Vieram e ainda não se matricularam. O contato nas primeiras 48 horas depois da aula é o que mais converte.</p>
+  <div class="list" style="margin-bottom:20px">${retorno.map(linha).join('') || '<div class="empty">Ninguém aguardando retorno.</div>'}</div>
+  <h2>Por canal em ${nomeMes(m)}</h2>
+  <div class="tbl-wrap panel"><table><thead><tr><th>Canal</th><th>Agendadas</th><th>Vieram</th><th>Matricularam</th><th>Conversão</th></tr></thead><tbody>
+  ${Object.entries(porCanal).sort((a, b) => b[1].m - a[1].m).map(([c, o]) => `<tr><td>${esc(c)}</td><td>${o.n}</td><td>${o.v}</td><td>${o.m}</td><td><strong>${pct(o.m, o.v)}</strong></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sem dados no mês.</td></tr>'}</tbody></table></div>
+  <h2>Histórico de ${nomeMes(m)}</h2><div class="list">${doMes.filter(x => x.status !== 'agendada' && x.status !== 'compareceu').sort((a, b) => b.data.localeCompare(a.data)).map(linha).join('') || '<div class="empty">Nada registrado.</div>'}</div>`;
+}
+function formExp(id){
+  const x = id ? S.cres.exp[id] : {data:hoje(), status:'agendada', mod:'jj', canal:''};
+  const o = (v, t, s) => `<option value="${esc(v)}" ${s ? 'selected' : ''}>${esc(t)}</option>`;
+  abrirModal(`<form id="fExp"><h2>${id ? 'Editar' : 'Nova'} aula experimental</h2>
+    <div class="field"><label for="en">Nome *</label><input type="text" id="en" name="nome" required value="${esc(x.nome)}"></div>
+    <div class="grid2"><div class="field"><label for="et">WhatsApp *</label><input type="tel" id="et" name="telefone" required value="${esc(x.telefone)}" placeholder="21 99999-9999"></div>
+    <div class="field"><label for="enas">Nascimento</label><input type="date" id="enas" name="nascimento" value="${esc(x.nascimento)}"></div></div>
+    <div class="grid3"><div class="field"><label for="em">Modalidade *</label><select id="em" name="mod">${S.config.modalidades.map(md => o(md.id, md.nome, x.mod === md.id)).join('')}</select></div>
+    <div class="field"><label for="ed">Data *</label><input type="date" id="ed" name="data" required value="${esc(x.data)}"></div>
+    <div class="field"><label for="eh">Horário</label><select id="eh" name="hora"></select></div></div>
+    <div class="grid2"><div class="field"><label for="ec">Como conheceu a SAFE</label><select id="ec" name="canal">${o('', 'Selecione')}${CANAIS.map(c => o(c, c, x.canal === c)).join('')}</select></div>
+    <div class="field"><label for="ei">Indicado por</label><input type="text" id="ei" name="indicadoPor" list="dlIndExp" value="${esc(x.indicadoPor)}"><datalist id="dlIndExp">${Object.values(S.alunos).map(a => `<option value="${esc(a.nome)}">`).join('')}</datalist></div></div>
+    <div class="field"><label for="eo">Observações</label><input type="text" id="eo" name="obs" value="${esc(x.obs)}" placeholder="Ex.: já treinou judô, tem receio de lesão no joelho"></div>
+    <div class="actions">${id && isAdmin() ? `<button type="button" class="btn danger" data-act="exp-del" data-id="${id}" style="margin-right:auto">Apagar</button>` : ''}<button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  const sync = () => {
+    const d = $('#ed').value, md = $('#em').value; if (!d) return;
+    const ts = S.config.turmas.filter(t => t.dia === parseD(d).getDay() && t.mod === md).sort((a, b) => a.hora.localeCompare(b.hora));
+    $('#eh').innerHTML = `<option value="">${ts.length ? 'Escolha' : 'Sem aula dessa modalidade no dia'}</option>` + ts.map(t => `<option ${x.hora === t.hora ? 'selected' : ''}>${t.hora}</option>`).join('');
+  };
+  $('#ed').addEventListener('change', sync); $('#em').addEventListener('change', sync); sync();
+  $('#fExp').addEventListener('submit', e => {
+    e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
+    const dig = String(fd.telefone || '').replace(/\D/g, '');
+    if (![10, 11, 12, 13].includes(dig.length)) return toast('WhatsApp parece incompleto. Use DDD + número.');
+    if (fd.canal === 'Indicação de aluno' && !fd.indicadoPor) return toast('Informe quem indicou.');
+    const nid = id || uid();
+    S.cres.exp[nid] = {...(S.cres.exp[nid] || {}), ...fd, id:nid, status:(S.cres.exp[nid] || {}).status || 'agendada', criadoPor:(S.cres.exp[nid] || {}).criadoPor || quem()};
+    registrar(`${id ? 'Editou' : 'Agendou'} aula experimental: ${fd.nome} (${fmtBR(fd.data)})`);
+    salvar(); fecharModal(); render(); toast('Aula experimental salva');
+  });
+}
+
+/* ---- Retenção ---- */
+function cresRet(){
+  const h = hoje(), alunos = Object.values(S.alunos);
+  const ativos = alunos.filter(a => a.status === 'ativo');
+  // mês a mês
+  const meses = []; for (let i = 5; i >= 0; i--) meses.push(addMes(mesAtual(), -i));
+  const linhas = meses.map(m => {
+    const ini = `${m}-01`, fim = m === mesAtual() ? h : `${m}-${pad(diasNoMes(m))}`;
+    const base = alunos.filter(a => statusEm(a, ini) === 'ativo').length;
+    const entradas = alunos.filter(a => { const p = primeiraAtivacao(a); return p && p >= ini && p <= fim; }).length;
+    const saidas = saidasNoPeriodo(ini, fim).length;
+    return {m, base, entradas, saidas};
+  });
+  // coortes
+  const coortes = [];
+  for (let i = 11; i >= 0; i--){
+    const m = addMes(mesAtual(), -i);
+    const membros = alunos.filter(a => { const p = primeiraAtivacao(a); return p && p.slice(0, 7) === m; });
+    if (!membros.length) continue;
+    const ret = n => { const alvo = addMesesData(`${m}-15`, n); if (alvo > h) return '—'; const c = membros.filter(a => statusEm(a, addMesesData(primeiraAtivacao(a), n)) === 'ativo').length; return pct(c, membros.length); };
+    coortes.push({m, n:membros.length, r1:ret(1), r3:ret(3), r6:ret(6), r12:ret(12)});
+  }
+  // permanência
+  const saiu = alunos.filter(a => a.status !== 'ativo' && a.status !== 'novo' && primeiraAtivacao(a) && ultimaSaida(a));
+  const permS = saiu.map(a => mesesEntre(primeiraAtivacao(a), ultimaSaida(a).data));
+  const permA = ativos.filter(a => primeiraAtivacao(a)).map(a => mesesEntre(primeiraAtivacao(a), h));
+  const media = v => v.length ? v.reduce((s, x) => s + x, 0) / v.length : 0;
+  const pagantes = ativos.map(valorMensal).filter(v => v > 0), ticket = media(pagantes);
+  const permBase = permS.length >= 3 ? media(permS) : null;
+  // motivos
+  const mot = {}; saidasNoPeriodo(addMesesData(h, -12), h).forEach(x => { const k = x.motivo || 'Não informado'; mot[k] = (mot[k] || 0) + 1; });
+  // radar 90 dias
+  const radar = ativos.map(a => { const p = primeiraAtivacao(a); if (!p || diasEntre(p, h) > 90) return null;
+    const dias = Math.max(1, diasEntre(p, h)), tr = presEntre(a.id, p, h), sem = Math.max(1, dias / 7), freq = tr / sem, sum = diasSumido(a);
+    return {a, dias, tr, freq, sum, risco: freq < 1.5 || (sum ?? 0) >= 7}; }).filter(Boolean).sort((x, y) => (y.risco - x.risco) || (x.freq - y.freq));
+  // ocupação
+  const ini56 = addDias(h, -56);
+  const ocup = S.config.turmas.map(t => { const ses = Object.values(S.presencas).filter(p => p.turma === t.id && p.data >= ini56 && Object.keys(p.alunos || {}).length);
+    const tot = ses.reduce((s, p) => s + Object.keys(p.alunos).length, 0); return {t, n:ses.length, med: ses.length ? tot / ses.length : 0}; })
+    .sort((a, b) => a.t.dia - b.t.dia || a.t.hora.localeCompare(b.t.hora));
+  const maxO = Math.max(1, ...ocup.map(o => o.med));
+  return `<div class="numeros" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+    ${cardN(ativos.length, 'alunos ativos')}${cardN(permA.length ? tempoTexto(Math.round(media(permA))) : '—', 'tempo médio de casa dos ativos')}${cardN(permBase != null ? tempoTexto(Math.round(permBase)) : '—', 'permanência média de quem saiu')}
+    ${isAdmin() ? cardN(permBase != null && ticket ? fmtR0(ticket * permBase) : '—', 'valor médio de um aluno na vida (ticket × permanência)') : ''}</div>
+  <div class="panel"><h3 style="margin-bottom:8px">Entradas e saídas</h3><div class="tbl-wrap"><table><thead><tr><th>Mês</th><th>Ativos no início</th><th>Entraram</th><th>Saíram</th><th>Cancelamento</th></tr></thead><tbody>
+    ${linhas.map(l => `<tr><td>${mesCurto(l.m)}/${l.m.slice(2, 4)}</td><td>${l.base}</td><td style="color:var(--ok)">+${l.entradas}</td><td style="color:var(--red)">−${l.saidas}</td><td><strong>${pct(l.saidas, l.base)}</strong></td></tr>`).join('')}</tbody></table></div>
+    <p class="muted small">Cancelamento = saídas do mês ÷ ativos no início do mês. Saídas contam a partir da data informada ao mudar a situação do aluno.</p></div>
+  <div class="panel"><h3 style="margin-bottom:8px">Quantos continuam, por mês de entrada</h3><div class="tbl-wrap"><table><thead><tr><th>Entrada</th><th>Alunos</th><th>1 mês</th><th>3 meses</th><th>6 meses</th><th>12 meses</th></tr></thead><tbody>
+    ${coortes.map(c => `<tr><td>${mesCurto(c.m)}/${c.m.slice(2, 4)}</td><td>${c.n}</td><td>${c.r1}</td><td>${c.r3}</td><td>${c.r6}</td><td>${c.r12}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Sem entradas nos últimos 12 meses.</td></tr>'}</tbody></table></div>
+    <p class="muted small">Mostra a porcentagem de cada turma de entrada que ainda estava ativa depois de 1, 3, 6 e 12 meses. É o número mais honesto de retenção, porque não mistura alunos novos com antigos.</p></div>
+  <div class="panel"><h3 style="margin-bottom:6px">Radar dos primeiros 90 dias</h3><p class="muted small">Novatos são o grupo que mais desiste. Em vermelho: menos de 1,5 treino por semana ou 7 dias sem aparecer.</p>
+    <div class="list">${radar.length ? radar.map(r => { const tel = r.a.telefone || r.a.telResp; const msg = `Oi, ${r.a.nome.split(' ')[0]}! Tudo certo? Estamos acompanhando seus primeiros treinos na SAFE e queremos saber como está sendo. Algum horário fica difícil? Te esperamos no tatame! Oss!`;
+      return `<div class="row" style="cursor:default"><a class="grow" href="#/aluno/${r.a.id}" style="text-decoration:none"><span class="name" style="display:block">${esc(r.a.nome)}</span><span class="meta">${r.risco ? '<span class="tag red">Atenção</span>' : '<span class="tag ok">Bem</span>'} ${r.dias} dias de casa, ${r.tr} treinos, ${r.freq.toFixed(1)} por semana${r.sum != null ? `, último há ${r.sum} dia(s)` : ''}</span></a>${tel ? `<a class="btn small ghost" href="${waLink(tel, msg)}" target="_blank" rel="noopener">Falar</a>` : ''}</div>`; }).join('') : '<div class="empty">Nenhum aluno com menos de 90 dias de casa.</div>'}</div></div>
+  <div class="grid2" style="gap:0 16px;align-items:start">
+    <div class="panel"><h3 style="margin-bottom:10px">Por que saíram (12 meses)</h3>${barrasH(Object.entries(mot).map(([nome, valor]) => ({nome, valor})).sort((a, b) => b.valor - a.valor), v => `${v}`)}<p class="muted small">O motivo passa a ser pedido sempre que um aluno é marcado como inativo ou trancado.</p></div>
+    <div class="panel"><h3 style="margin-bottom:10px">Ocupação por horário (8 semanas)</h3>${ocup.map(o => { const md = mod(o.t.mod) || {nome:'?', cor:'#999'}; return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px;font-size:15px"><span><i class="dot" style="background:${md.cor}"></i> ${DIAS_C[o.t.dia]} ${o.t.hora} ${esc(md.nome)}</span><strong>${o.med.toFixed(1)}</strong></div><div class="bar"><i style="width:${Math.round(o.med / maxO * 100)}%;background:${md.cor}"></i></div><span class="muted small">${o.n} aula(s) registrada(s)</span></div>`; }).join('')}</div>
+  </div>`;
+}
+
+/* ---- Origem e indicações ---- */
+function cresOrigem(){
+  const alunos = Object.values(S.alunos).filter(a => primeiraAtivacao(a));
+  const porCanal = {};
+  alunos.forEach(a => { const c = a.canal || 'Não informado'; const o = porCanal[c] ||= {n:0, at:0, perm:[]}; o.n++; if (a.status === 'ativo') o.at++; const fim = a.status === 'ativo' ? hoje() : (ultimaSaida(a) || {}).data; if (fim) o.perm.push(mesesEntre(primeiraAtivacao(a), fim)); });
+  const exps = Object.values(S.cres.exp);
+  const ind = {};
+  Object.values(S.alunos).forEach(a => { if (!a.indicadoPor || !primeiraAtivacao(a)) return; const k = norm(a.indicadoPor); const o = ind[k] ||= {nome:a.indicadoPor, n:0, at:0, lista:[]}; o.n++; if (a.status === 'ativo') o.at++; o.lista.push(a.nome); });
+  const achaAluno = nome => Object.values(S.alunos).find(x => norm(x.nome) === norm(nome));
+  return `<div class="panel"><h3 style="margin-bottom:6px">De onde vêm os alunos que ficam</h3><p class="muted small">Todos os alunos que já estiveram ativos, pelo canal informado no cadastro. O que importa não é só quantos cada canal traz, mas quantos continuam.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Canal</th><th>Alunos</th><th>Ainda ativos</th><th>% que ficou</th><th>Permanência média</th><th>Experimentais</th></tr></thead><tbody>
+    ${Object.entries(porCanal).sort((a, b) => b[1].n - a[1].n).map(([c, o]) => { const ex = exps.filter(x => (x.canal || 'Não informado') === c); const conv = ex.filter(x => x.status === 'matriculou').length;
+      return `<tr><td>${esc(c)}</td><td>${o.n}</td><td>${o.at}</td><td><strong>${pct(o.at, o.n)}</strong></td><td>${o.perm.length ? tempoTexto(Math.round(o.perm.reduce((s, x) => s + x, 0) / o.perm.length)) : '—'}</td><td>${ex.length ? `${ex.length} (${pct(conv, ex.length)} viraram aluno)` : '—'}</td></tr>`; }).join('')}</tbody></table></div>
+    ${porCanal['Não informado'] ? `<p class="muted small">${porCanal['Não informado'].n} aluno(s) sem canal informado. Dá para completar na ficha, campo "Como conheceu a SAFE".</p>` : ''}</div>
+  <div class="panel"><h3 style="margin-bottom:6px">Ranking de indicações</h3><p class="muted small">Quem mais trouxe alunos para a SAFE. Ótima base para premiar e agradecer publicamente.</p>
+    <div class="list">${Object.values(ind).sort((a, b) => b.n - a.n || b.at - a.at).map((o, i) => { const al = achaAluno(o.nome); return `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="pos ${i < 3 ? 'p' + (i + 1) : ''}">${i + 1}º</span><span class="grow" style="min-width:180px">${al ? `<a href="#/aluno/${al.id}" class="name" style="text-decoration:none">${esc(al.nome)}</a>` : `<span class="name">${esc(o.nome)}</span>`}<span class="meta" style="display:block">Indicou: ${o.lista.map(esc).join(', ')}</span>${isAdmin() && al ? `<span class="meta">${al.descontoMotivo === 'Indicação' ? `<span class="tag ok">Tem desconto por indicação</span>` : '<span class="tag">Sem desconto de indicação</span>'}</span>` : ''}</span><strong style="font-family:var(--cond);font-size:22px">${o.n}</strong><span class="muted small">${o.at} ativo(s)</span></div>`; }).join('') || '<div class="empty">Nenhuma indicação registrada. O campo "Indicado por" na ficha e no formulário alimenta este ranking.</div>'}</div></div>`;
+}
+
+/* ---- Pautas para o Instagram ---- */
+function cresPautas(){
+  const h = hoje(), ini = addDias(h, -14), ps = [];
+  const ok = a => a && a.consImagem && a.status !== 'inativo';
+  const pn = a => a.nome.split(' ')[0];
+  Object.values(S.alunos).forEach(a => {
+    if (!ok(a)) return;
+    (a.historico || []).forEach(x => { if (x.data >= ini && x.data <= h && !/cadastro|exemplo/i.test(x.obs || '')) ps.push({data:x.data, tipo:'Graduação', a, txt: x.tipo === 'grau' ? `Mais um grau na faixa! Parabéns, ${pn(a)}, pelo ${x.graus}º grau na faixa ${faixa(x.faixa).nome.toLowerCase()}. Constância que vira evolução no tatame da SAFE. Oss!` : `Nova faixa na SAFE! Parabéns, ${pn(a)}, pela faixa ${faixa(x.faixa).nome.toLowerCase()}. Cada treino contou para chegar aqui. Oss!`}); });
+    const p = primeiraAtivacao(a); if (p && p >= ini && p <= h) ps.push({data:p, tipo:'Boas-vindas', a, txt:`Seja bem-vindo(a) à família SAFE, ${pn(a)}! O primeiro passo no tatame é o mais importante. Oss!`});
+    const antes = presEntre(a.id, '0000', addDias(ini, -1)), agora = presDe(a.id).length;
+    [50, 100, 150, 200, 300, 500, 1000].forEach(mc => { if (antes < mc && agora >= mc) ps.push({data:h, tipo:'Marco de treinos', a, txt:`${mc} treinos! ${pn(a)} completou ${mc} treinos na SAFE. Disciplina é isso: aparecer, treino após treino. Oss!`}); });
+    if (a.nascimento){ const prox = `${h.slice(0, 4)}-${a.nascimento.slice(5)}`; const d = diasEntre(h, prox); if (d >= 0 && d <= 7) ps.push({data:prox, tipo: d === 0 ? 'Aniversário hoje' : `Aniversário em ${d} dia(s)`, a, txt:`Hoje é dia de festa no tatame! Feliz aniversário, ${pn(a)}! A família SAFE deseja muita saúde e muitos treinos. Oss!`}); }
+  });
+  Object.values(S.campeonatos).forEach(c => { if (!c.data || c.data < ini || c.data > h) return; (c.inscritos || []).forEach(i => { const a = S.alunos[i.aluno]; if (!ok(a) || !['ouro','prata','bronze'].includes(i.resultado)) return;
+    ps.push({data:c.data, tipo:'Medalha', a, txt:`${i.resultado === 'ouro' ? 'Ouro' : i.resultado === 'prata' ? 'Prata' : 'Bronze'} para a SAFE! ${pn(a)} subiu ao pódio no ${c.nome}${i.categoria ? `, categoria ${i.categoria}` : ''}. Orgulho da equipe! Oss!`}); }); });
+  ps.sort((a, b) => b.data.localeCompare(a.data));
+  const semAut = Object.values(S.alunos).filter(a => a.status === 'ativo' && !a.consImagem).length;
+  return `<p class="muted small">Histórias reais dos últimos 14 dias (e aniversários da próxima semana) para postar. Só aparecem alunos que autorizaram o uso de imagem${semAut ? `; ${semAut} aluno(s) ativo(s) ainda sem essa autorização` : ''}. Os textos são sugestões: adapte ao seu jeito e acrescente #SAFEJiuJitsu #JiuJitsu #DefesaPessoal.</p>
+  <div class="list">${ps.length ? ps.map((p, i) => `<div class="row" style="cursor:default;flex-wrap:wrap;align-items:flex-start"><span class="grow" style="min-width:220px"><span class="meta"><span class="tag">${p.tipo}</span> ${fmtBR(p.data)}, <a href="#/aluno/${p.a.id}">${esc(p.a.nome)}</a></span><span style="display:block;margin-top:4px" id="pauta${i}">${esc(p.txt)}</span></span><button class="btn small ghost" data-act="copiar-pauta" data-i="${i}">Copiar texto</button></div>`).join('') : '<div class="empty">Nenhuma história nova nos últimos 14 dias. Graduações, medalhas, marcos de treino e novos alunos aparecem aqui automaticamente.</div>'}</div>`;
+}
+
+/* ---- Reativação ---- */
+function cresReat(){
+  const h = hoje();
+  const lista = Object.values(S.alunos).filter(a => ['inativo','trancado'].includes(a.status)).map(a => { const s = ultimaSaida(a); return {a, s, dias: s ? diasEntre(s.data, h) : null}; })
+    .filter(x => x.dias == null || (x.dias >= 30 && x.dias <= 730)).filter(x => !(x.s && x.s.motivo === 'Mudou de cidade ou bairro'))
+    .sort((x, y) => (x.a.contatoReativacao ? 1 : 0) - (y.a.contatoReativacao ? 1 : 0) || (x.dias ?? 9999) - (y.dias ?? 9999));
+  const MSG = {
+    'Falta de tempo ou horário':'Nossa grade tem horários novos e aulas em vários dias da semana. Quer que eu te mande os horários atuais?',
+    'Financeiro':'Temos planos semestral e anual com mensalidade menor. Posso te passar os valores?',
+    'Lesão ou saúde':'Se já estiver liberado(a), a gente adapta os treinos para uma volta tranquila e segura.',
+    'Trabalho ou estudos':'Se a rotina mudou, dá uma olhada nos horários: pode ser que agora encaixe.'
+  };
+  return `<p class="muted small">Ex-alunos que saíram entre 1 mês e 2 anos atrás (quem mudou de cidade fica de fora). Trazer de volta quem já conhece a SAFE costuma ser o jeito mais barato de ganhar aluno. Depois de falar, marque como contatado para não repetir.</p>
+  <div class="list">${lista.length ? lista.map(({a, s, dias}) => { const tel = a.telefone || a.telResp; const msg = `Oi, ${a.nome.split(' ')[0]}! Aqui é da SAFE Jiu-Jitsu. Sentimos sua falta no tatame! ${MSG[s && s.motivo] || 'Que tal voltar a treinar com a gente?'} Oss!`;
+    return `<div class="row" style="cursor:default;flex-wrap:wrap"><a class="grow" href="#/aluno/${a.id}" style="text-decoration:none;min-width:200px"><span class="name" style="display:block">${esc(a.nome)}</span><span class="meta"><span class="tag warn">${esc(a.status)}</span> ${dias != null ? `há ${tempoTexto(Math.floor(dias / 30))}` : 'data de saída não registrada'}${s && s.motivo ? `, motivo: ${esc(s.motivo)}` : ''}${a.contatoReativacao ? `, <strong>contatado em ${fmtBR(a.contatoReativacao)}</strong>` : ''}</span></a>
+      <span style="display:flex;gap:6px">${tel ? `<a class="btn small primary" href="${waLink(tel, msg)}" target="_blank" rel="noopener">Chamar</a>` : ''}<button class="btn small ghost" data-act="reat-ok" data-id="${a.id}">Marcar contatado</button></span></div>`; }).join('') : '<div class="empty">Nenhum ex-aluno para reativar agora.</div>'}</div>`;
+}
+
+/* ---- NPS ---- */
+function cresNps(){
+  const lim = addDias(hoje(), -90), rs = Object.values(S.cres.nps).sort((a, b) => b.data.localeCompare(a.data));
+  const rec = rs.filter(r => r.data >= lim), P = rec.filter(r => r.nota >= 9).length, D = rec.filter(r => r.nota <= 6).length, N = rec.length - P - D;
+  const nps = rec.length ? Math.round((P - D) / rec.length * 100) : null;
+  const zona = nps == null ? '' : nps >= 75 ? 'excelência' : nps >= 50 ? 'qualidade' : nps >= 0 ? 'aperfeiçoamento' : 'crítica';
+  return `<div class="numeros" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">${cardN(nps == null ? '—' : nps, `NPS dos últimos 90 dias${zona ? `, zona de ${zona}` : ''}`, nps == null ? '' : nps >= 50 ? 'var(--ok)' : nps >= 0 ? 'var(--warn)' : 'var(--red)')}${cardN(P, 'promotores (9 e 10)', 'var(--ok)')}${cardN(N, 'neutros (7 e 8)')}${cardN(D, 'detratores (0 a 6)', 'var(--red)')}</div>
+  <div class="panel"><h3 style="margin-bottom:6px">Como fazer a pesquisa</h3>
+    <p class="small">Crie um Google Forms com duas perguntas: <strong>"De 0 a 10, qual a chance de você recomendar a SAFE a um amigo?"</strong> (escala linear de 0 a 10) e <strong>"O que mais contribuiu para a sua nota?"</strong> (parágrafo). Mande o link aos alunos a cada 3 meses. Depois, abra a planilha de respostas, copie tudo (Ctrl + A, Ctrl + C) e importe aqui.</p>
+    <button class="btn primary" data-act="nps-imp">Importar respostas</button></div>
+  <h2>Comentários</h2><div class="list">${rs.length ? rs.slice(0, 100).map(r => `<div class="row" style="cursor:default"><span class="tag ${r.nota >= 9 ? 'ok' : r.nota <= 6 ? 'red' : ''}" style="min-width:34px;text-align:center">${r.nota}</span><span class="grow">${esc(r.comentario || 'Sem comentário')}<span class="meta" style="display:block">${fmtBR(r.data)}${r.nome ? `, ${esc(r.nome)}` : ''}</span></span></div>`).join('') : '<div class="empty">Nenhuma resposta importada ainda.</div>'}</div>`;
+}
+function importarNps(txt){
+  const rows = parseTabela(txt); if (rows.length < 2) return {erro:'Cole a planilha inteira, com a linha de títulos.'};
+  const H = rows[0].map(norm);
+  const cData = H.findIndex(h => h.includes('carimbo') || h.includes('timestamp') || h === 'data');
+  let cNota = H.findIndex(h => h.includes('recomendar') || h.includes('nota') || h.includes('0 a 10'));
+  const cCom = H.findIndex(h => h.includes('contribuiu') || h.includes('coment') || h.includes('por que') || h.includes('sugest'));
+  const cNome = H.findIndex(h => h.startsWith('nome'));
+  if (cNota < 0) return {erro:'Não encontrei a coluna da nota de 0 a 10.'};
+  const chaves = new Set(Object.values(S.cres.nps).map(r => r.chave)); let n = 0;
+  rows.slice(1).forEach(r => {
+    const nota = Number(String(r[cNota] || '').replace(',', '.')); if (!(nota >= 0 && nota <= 10)) return;
+    const data = (cData >= 0 && dataForm(r[cData])) || hoje(), com = cCom >= 0 ? String(r[cCom] || '').trim() : '';
+    const chave = `${data}|${nota}|${norm(com).slice(0, 60)}|${cNome >= 0 ? norm(r[cNome]) : ''}`; if (chaves.has(chave)) return;
+    const id = uid() + n; S.cres.nps[id] = {id, data, nota:Math.round(nota), comentario:com, nome:cNome >= 0 ? String(r[cNome] || '').trim() : '', chave}; chaves.add(chave); n++;
+  });
+  if (n) registrar(`Importou ${n} resposta(s) da pesquisa NPS`);
+  salvar(); return {n};
 }
 
 /* ============ Versão online (Firebase) ============ */
@@ -1993,7 +2261,7 @@ async function criarPerfil(u){
 function pararDados(){ subsDados.forEach(f => f()); subsDados = []; pronto = false; R = {}; }
 function iniciarDados(){
   pararDados(); render();
-  const paths = ['config','alunos','presencas','campeonatos', ...(isAdmin() ? ['configFin','alunosFin','financeiro','lixeira','historico'] : [])];
+  const paths = ['config','alunos','presencas','campeonatos','crescimento', ...(isAdmin() ? ['configFin','alunosFin','financeiro','lixeira','historico'] : [])];
   const carregado = {};
   paths.forEach(p => {
     const ref = db.ref(p);
@@ -2016,6 +2284,7 @@ function reconstruir(){
   if (R.configFin) Object.assign(S.config, JSON.parse(JSON.stringify(R.configFin)));
   S.alunos = alunos; S.presencas = JSON.parse(JSON.stringify(R.presencas || {})); S.campeonatos = JSON.parse(JSON.stringify(R.campeonatos || {}));
   S.fin = JSON.parse(JSON.stringify(R.financeiro || {}));
+  const rc = R.crescimento || {}; S.cres = {exp:JSON.parse(JSON.stringify(rc.experimentais || {})), nps:JSON.parse(JSON.stringify(rc.nps || {}))};
   if (isAdmin()){ S.lixeira = JSON.parse(JSON.stringify(R.lixeira || {})); S.log = JSON.parse(JSON.stringify(R.historico || {})); }
   normalizar(); _idx = null;
   base = mapear(); let iniciar = false;
@@ -2052,6 +2321,8 @@ function mapear(){
   });
   Object.entries(S.presencas).forEach(([k, p]) => achatar(m, 'presencas/' + k, p, 2));
   Object.values(S.campeonatos).forEach(c => achatar(m, 'campeonatos/' + c.id, c, 1));
+  Object.entries(S.cres.exp).forEach(([id, v]) => achatar(m, 'crescimento/experimentais/' + id, v, 1));
+  Object.entries(S.cres.nps).forEach(([id, v]) => achatar(m, 'crescimento/nps/' + id, v, 0));
   return m;
 }
 function salvarOnline(){
@@ -2205,6 +2476,19 @@ function carregarExemplo(){
   [[p1,'A2',-20],[p2,'M',-12],[p2,'G',-3],[p1,'A1',-45]].forEach(([pid, t, d], i) => { const pr = S.fin.produtos[pid], id = uid() + i; S.fin.vendas[id] = {id, produto:pid, produtoNome:pr.nome, tam:t, qtd:1, preco:pr.preco, custo:pr.custo, data:addDias(h, d), aluno:'', forma:'Pix', pago:i !== 1}; });
   [['custo','Manutenção',180,-15,'Troca de lâmpadas e reparo no tatame'],['custo','Estoque (compra de produtos)',700,-40,'Camisas SAFE'],['receita','Seminário',900,-25,'Seminário de defesa pessoal']].forEach(([tipo, cat, v, d, desc], i) => { const id = uid() + 'l' + i; S.fin.lancamentos[id] = {id, tipo, categoria:cat, valor:v, data:addDias(h, d), descricao:desc}; });
   S.campeonatos[c2] = {id:c2, nome:'Open Rio (exemplo)', data:addDias(h, -40), prazo:addDias(h, -50), local:'Rio de Janeiro', federacao:'IBJJF', formato:'gi', valor:'180', link:'', obs:'', inscritos:insc([0, 2, 8, 12], ['ouro','bronze','prata','ouro']).map(x => ({...x, status:'pago'}))};
+  
+  // crescimento: canais, indicações, ex-alunos e experimentais
+  const canais = ['Indicação de aluno','Instagram','Instagram','Google','Passei em frente à academia','Indicação de aluno'];
+  ids.forEach((x, i) => { const al = S.alunos[x.id]; al.canal = canais[i % canais.length]; if (al.canal === 'Indicação de aluno') al.indicadoPor = i % 2 ? 'Lucas Andrade' : 'Juliana Freitas'; });
+  [['Fernando Dias','1994-02-11','Masculino',['jj'],150,60,'Falta de tempo ou horário','Instagram'],['Patrícia Lopes','1996-07-21','Feminino',['mt'],240,120,'Financeiro','Google'],['Rodrigo Tavares','1989-05-02','Masculino',['jj'],300,200,'Mudou de cidade ou bairro','Indicação de aluno']].forEach(([nome, nasc, sexo, mods, ent, sai, motivo, canal], i) => {
+    const id = uid() + 'x' + i, dm = addDias(h, -ent), ds = addDias(h, -sai);
+    S.alunos[id] = {id, nome, nascimento:nasc, sexo, mods, faixa:'branca', graus:1, dataFaixa:dm, dataMatricula:dm, status:'inativo', plano:mods[0] === 'mt' ? 'p4' : 'p1', vencimento:10, telefone:`2197${String(3000000 + i * 1234).slice(0,7)}`, canal, consImagem:true,
+      historicoStatus:[{data:ds, status:'inativo', anterior:'ativo', motivo, por:'Exemplo'}], historico:[{id:uid(), tipo:'faixa', faixa:'branca', graus:0, data:dm, obs:'Exemplo'}]};
+  });
+  const la = S.alunos[ids[0].id]; la.historico.push({id:uid(), tipo:'grau', faixa:la.faixa, graus:3, data:addDias(h, -3), prof:'Rodrigo', obs:''}); la.graus = 3;
+  [['Marcos Lima','jj',-20,'matriculou','Instagram'],['Bianca Rocha','mt',-12,'compareceu','Google'],['Tiago Reis','jj',-9,'nao_fechou','Instagram'],['Sofia Nunes','kids',-5,'compareceu','Indicação de aluno'],['Caio Prado','nogi',-2,'faltou','Passei em frente à academia'],['Lara Mota','jj',0,'agendada','Instagram'],['Otávio Luz','kids',3,'agendada','Indicação de aluno']].forEach(([nome, md, d, st, canal], i) => {
+    const id = uid() + 'e' + i; S.cres.exp[id] = {id, nome, telefone:`2196${String(4000000 + i * 777).slice(0,7)}`, mod:md, data:addDias(h, d), hora:'', status:st, canal, indicadoPor: canal === 'Indicação de aluno' ? 'Lucas Andrade' : '', obs:''};
+  });
   salvar();
 }
 
@@ -2214,7 +2498,7 @@ document.addEventListener('click', e => {
   const act = el.dataset.act, id = el.dataset.id;
   if (act === 'fundo'){ if (e.target === el) fecharModal(); return; }
   if (['papel','tema'].includes(act)) return; // tratados no change
-  if (!['grad-aptos','ver-sumidos','ver-equipe'].includes(act)) e.preventDefault();
+  if (!['grad-aptos','ver-sumidos','ver-equipe','cres-exp'].includes(act)) e.preventDefault();
   const A = {
     'fechar': fecharModal,
     'novo-aluno': () => formAluno(),
@@ -2252,10 +2536,22 @@ document.addEventListener('click', e => {
     'add-golpe': () => { const g = comp().golpes; g.push({id:uid(), n:g.length + 1, nome:'Nova técnica', desc:'', video:'', proib:[false,false,false,false,false,false]}); salvar(); render(); },
     'reset-comp': async () => { if (await confirmar('Voltar todas as tabelas e regras de competição ao padrão IBJJF? Seus campeonatos e atletas não são afetados.')){ S.config.competicao = compPadrao(); salvar(); render(); } },
     'ver-equipe': () => { ui.maisTab = 'dados'; },
+    'cres-exp': () => { ui.cresTab = 'exp'; },
     'rosto': () => formRosto(id),
     'rosto-ficha': () => cadastrarRosto(id, S.alunos[id].foto),
     'rosto-apagar': async () => { if (await confirmar('Apagar os dados faciais deste aluno? Ele deixa de ser reconhecido na chamada por foto.', 'Apagar')){ delete S.alunos[id].rosto; salvar(); render(); toast('Dados faciais apagados'); } },
     'fr-ok': () => confirmarFotoChamada(),
+    'cresTab': () => { ui.cresTab = el.dataset.v; render(); },
+    'exp-edit': () => formExp(id),
+    'exp-st': () => { const x = S.cres.exp[id]; x.status = el.dataset.v; registrar(`Aula experimental de ${x.nome}: ${ST_EXP[x.status][0].toLowerCase()}`); salvar(); render(); },
+    'exp-mat': () => { const x = S.cres.exp[id];
+      formAluno(null, {nome:x.nome, telefone:x.telefone, nascimento:x.nascimento || '', mods:[x.mod], canal:x.canal || '', indicadoPor:x.indicadoPor || '', obs:x.obs ? `Aula experimental: ${x.obs}` : ''},
+        nid => { const e = S.cres.exp[id]; if (e){ e.status = 'matriculou'; e.alunoId = nid; registrar(`Aula experimental virou matrícula: ${e.nome}`); } }); },
+    'exp-del': async () => { if (await confirmar('Apagar este registro de aula experimental?', 'Apagar')){ registrar(`Apagou aula experimental de ${S.cres.exp[id]?.nome || ''}`); delete S.cres.exp[id]; salvar(); render(); } },
+    'reat-ok': () => { const a = S.alunos[id]; a.contatoReativacao = hoje(); registrar(`Contato de reativação: ${a.nome}`); salvar(); render(); toast('Marcado como contatado'); },
+    'copiar-pauta': () => { const t = ($('#pauta' + el.dataset.i) || {}).textContent || ''; if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Texto copiado')).catch(() => mostrarBackup(t)); else mostrarBackup(t); },
+    'nps-imp': () => abrirModal(`<h2>Importar respostas do NPS</h2><p class="muted small">Abra a planilha de respostas da pesquisa, selecione tudo (Ctrl + A), copie (Ctrl + C) e cole abaixo. Respostas já importadas são ignoradas.</p><textarea id="txtNps" style="min-height:160px"></textarea><div class="actions"><button class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" data-act="nps-imp-ok">Importar</button></div>`),
+    'nps-imp-ok': () => { const r = importarNps($('#txtNps').value); if (r.erro) return toast(r.erro); fecharModal(); render(); toast(`${r.n} resposta(s) importada(s)`); },
     'finTab': () => { ui.finTab = el.dataset.v; render(); },
     'finMesNav': () => { ui.finMes = addMes(ui.finMes, Number(el.dataset.n)); render(); },
     'mens-receber': () => formReceber(id, el.dataset.m),
@@ -2327,7 +2623,7 @@ document.addEventListener('click', e => {
       abrirModal(`<h2>Restaurar backup</h2><p class="muted small">Cole o texto do backup. Isso substitui os dados atuais deste navegador.</p><textarea id="txtImp" style="min-height:200px"></textarea><div class="actions"><button class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" data-act="importar-ok">Restaurar</button></div>`);
     },
     'importar-ok': () => {
-      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta, logAnt = S.log, lixAnt = S.lixeira; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, fin:o.fin || {}, log:logAnt, lixeira:lixAnt, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); registrar('Restaurou um backup'); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
+      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta, logAnt = S.log, lixAnt = S.lixeira; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, fin:o.fin || {}, cres:o.cres || {}, log:logAnt, lixeira:lixAnt, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); registrar('Restaurou um backup'); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
       catch(err){ toast('Texto de backup inválido. Copie o backup completo e tente de novo.'); }
     }
   };
@@ -2351,6 +2647,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'rankPer'){ ui.rankPer = t.value; renderDepois(); }
   else if (t.id === 'rankMod'){ ui.rankMod = t.value; renderDepois(); }
   else if (t.id === 'gradFiltro'){ ui.gradFiltro = t.value; renderDepois(); }
+  else if (t.id === 'cresMes'){ ui.cresMes = t.value || hoje().slice(0, 7); renderDepois(); }
   else if (t.id === 'profMes'){ ui.profMes = t.value || hoje().slice(0, 7); renderDepois(); }
   else if (t.id === 'profAula'){ const [, d, tid] = rota(); const v = t.value.trim(); S.meta.ultimoProf = v || S.meta.ultimoProf; const k = `${d}_${tid}`; if (S.presencas[k]){ if (v) S.presencas[k].prof = v; else delete S.presencas[k].prof; } if (!ONLINE) salvar(); else salvar(); }
   else if (t.id === 'fotoTurma'){ const f = t.files[0]; t.value = ''; const [, d, tid] = rota(); if (f) chamadaPorFoto(d, tid, f); }
