@@ -182,6 +182,9 @@ td input{min-height:36px;padding:6px 8px}
 fieldset{border:0;padding:0;margin:0 0 18px}
 legend{font-family:var(--cond);font-weight:600;font-size:20px;margin-bottom:10px;padding:0}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:8px;z-index:60;font-weight:500;max-width:90vw}
+#conexao{position:fixed;left:0;right:0;top:0;z-index:70;padding:calc(8px + env(safe-area-inset-top,0px)) 14px 8px;font-size:14px;font-weight:600;text-align:center;display:none}
+#conexao.con-off{background:var(--red);color:#fff}
+#conexao.con-salvando{background:var(--warn-soft);color:var(--ink)}
 .notice{background:var(--warn-soft);color:var(--ink);border-radius:8px;padding:12px 14px;font-size:14px;margin-bottom:16px}
 </style>
 </head>
@@ -243,6 +246,7 @@ function waLink(tel, msg){
   return `https://wa.me/${d}?text=${encodeURIComponent(msg || '')}`;
 }
 function toast(msg){
+  document.querySelectorAll('.toast').forEach(x => x.remove());
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.setAttribute('role','status');
   document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
 }
@@ -380,12 +384,17 @@ function normalizar(){
   c.pesos ||= {}; Object.keys(cd.pesos).forEach(k => { c.pesos[k] = c.pesos[k] ? arr(c.pesos[k]) : cd.pesos[k]; });
   c.kids ||= {}; Object.keys(cd.kids).forEach(i => { const v = c.kids[i] || cd.kids[i]; c.kids[i] = [0,1,2,3,4,5,6,7,8].map(j => v[j] ?? null); });
   S.config.formsPlanilha ??= 'https://docs.google.com/spreadsheets/d/1d_AgrZCoJb6aPqm63c6Ukwm6Z9r9lmtR_Wemy78BGSE/edit';
-  Object.entries(S.alunos).forEach(([id, a]) => { a.id = id; a.mods = arr(a.mods); a.historico = arr(a.historico); a.pesos = arr(a.pesos); });
+  Object.entries(S.alunos).forEach(([id, a]) => { a.id = id; a.mods = arr(a.mods); a.historico = arr(a.historico); a.pesos = arr(a.pesos); if (a.rosto) a.rosto = arr(a.rosto).map(d => Array.isArray(d) ? d : Object.values(d)); });
   Object.values(S.campeonatos).forEach(x => { x.inscritos = arr(x.inscritos); });
   Object.values(S.presencas).forEach(x => { x.alunos ||= {}; });
   S.fin ||= {}; ['mensalidades','lancamentos','vendas','produtos'].forEach(k => { S.fin[k] ||= {}; });
+  S.log ||= {}; S.lixeira ||= {};
+  Object.values(S.alunos).forEach(a => { a.historicoStatus = arr(a.historicoStatus); });
+  S.config.inicioFinanceiro ??= Object.keys(S.fin.mensalidades).sort()[0] || hoje().slice(0, 7);
+  limparAntigos();
   Object.values(S.fin.produtos).forEach(p => { p.estoque ||= {}; });
   S.config.pix ??= '';
+  S.config.facial ??= false;
   S.config.msgCobranca ??= 'Olá, {nome}! Tudo bem? Passando para lembrar da mensalidade de {mes} da SAFE, no valor de {valor}, com vencimento em {vencimento}. Chave Pix: {pix}. Se já pagou, desconsidere. Oss!';
 }
 function carregar(){
@@ -438,7 +447,7 @@ const ICON = {
   mais:'<circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
 };
 const NAV = [['inicio','Início'],['alunos','Alunos'],['presenca','Presença'],['graduacoes','Graduação','Faixas'],['competicao','Competição','Lutas'],['financeiro','Financeiro','Finanças'],['mais','Ajustes']];
-const ui = {busca:'', fMod:'', fStatus:'ativo', gradFiltro:'todos', gradTab:'alunos', presTab:'chamada', presData:hoje(), rankPer:'mes', rankMod:'', maisTab:'grade', chamadaBusca:'', compTab:'atletas', compEdit:false, sim:{sexo:'Masculino', ano:1995, peso:75}, golpe:{idade:25, faixa:'branca', formato:'gi', divisao:'adulto'}, finTab:'resumo', finMes:hoje().slice(0, 7), finFiltro:'todos', finMod:'', finSt:'pendentes'};
+const ui = {busca:'', fMod:'', fStatus:'ativo', gradFiltro:'todos', gradTab:'alunos', presTab:'chamada', presData:hoje(), rankPer:'mes', rankMod:'', maisTab:'grade', chamadaBusca:'', compTab:'atletas', compEdit:false, sim:{sexo:'Masculino', ano:1995, peso:75}, golpe:{idade:25, faixa:'branca', formato:'gi', divisao:'adulto'}, finTab:'resumo', finMes:hoje().slice(0, 7), finFiltro:'todos', finMod:'', finSt:'pendentes', profMes:hoje().slice(0, 7)};
 
 function rota(){ const h = location.hash.replace(/^#\/?/, '') || 'inicio'; return h.split('/'); }
 function render(){
@@ -450,7 +459,8 @@ function render(){
   $('#nav').innerHTML = NAV.filter(([id]) => id !== 'financeiro' || isAdmin()).map(([id, nome, curto]) => `<a href="#/${id}" class="${sec === id ? 'on' : ''}" ${sec === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg><span class="lg">${nome}</span><span class="sm" aria-hidden="true">${curto || nome}</span></a>`).join('');
   $('#papel').textContent = (ONLINE && S.meta.nome ? S.meta.nome + ', ' : '') + (isAdmin() ? 'administrador' : 'professor');
   const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, competicao:viewCompeticao, financeiro:viewFinanceiro, mais:viewMais};
-  $('#main').innerHTML = (views[v] || viewInicio)(...args);
+  try { $('#main').innerHTML = (views[v] || viewInicio)(...args); }
+  catch(err){ console.error(err); $('#main').innerHTML = `<div class="notice">Esta tela não abriu por um erro inesperado. Volte e tente de novo. Se continuar, envie esta mensagem ao suporte: ${esc(err && err.message)}</div>`; return; }
   const after = {alunos:listaAlunos, chamada:() => listaChamada(args[0], args[1]), competicao:simAtualiza}[v];
   if (after) after();
 }
@@ -469,6 +479,7 @@ function viewInicio(){
   return `
   <section class="hero"><div class="dia">${DIAS[d.getDay()]}</div><h1>${d.getDate()} de ${MESES[d.getMonth()]}</h1></section>
   ${ONLINE && isAdmin() && pendentesEquipe() ? `<div class="notice">${pendentesEquipe()} pessoa(s) criaram conta e aguardam sua aprovação. <a href="#/mais" data-act="ver-equipe">Aprovar em Ajustes</a></div>` : ''}
+  ${ONLINE && isAdmin() && backupMensalPendente() ? `<div class="notice">Hora do backup mensal no seu computador. <button class="btn small ghost" data-act="baixar-backup">Baixar agora</button></div>` : ''}
   ${vazio ? `<div class="notice">Nenhum aluno cadastrado ainda. Cadastre o primeiro em <a href="#/alunos">Alunos</a> ou carregue alunos de exemplo em <a href="#/mais">Ajustes</a> para explorar o app.</div>` : ''}
   <h2>Aulas de hoje</h2>
   <div class="list agenda">
@@ -521,7 +532,7 @@ function listaAlunos(){
     <a class="row" href="#/aluno/${a.id}">
       <span class="avatar" aria-hidden="true">${a.foto ? `<img src="${a.foto}" alt="">` : iniciais(a.nome)}</span>
       <span class="grow"><span class="name" style="display:block">${esc(a.nome)}</span>
-        <span class="meta">${a.nascimento ? `${idadeReal(a.nascimento)} anos` : ''}${(a.mods || []).map(id => { const m = mod(id); return m ? `<span class="tag"><i class="dot" style="background:${m.cor};width:7px;height:7px"></i> ${esc(m.nome)}</span>` : ''; }).join('')}${a.status !== 'ativo' ? `<span class="tag warn">${a.status === 'novo' ? 'novo cadastro' : a.status}</span>` : ''}${a.atleta ? '<span class="tag red">atleta</span>' : ''}</span></span>
+        <span class="meta">${a.nascimento ? `${idadeReal(a.nascimento)} anos` : ''}${(a.mods || []).map(id => { const m = mod(id); return m ? `<span class="tag"><i class="dot" style="background:${m.cor};width:7px;height:7px"></i> ${esc(m.nome)}</span>` : ''; }).join('')}${a.status !== 'ativo' ? `<span class="tag warn">${a.status === 'novo' ? 'novo cadastro' : a.status}</span>` : ''}${a.atleta ? '<span class="tag red">atleta</span>' : ''}${a.bolsa === 'professor' ? '<span class="tag ok">professor</span>' : ''}</span></span>
       ${usaFaixa(a) ? beltSVG(a.faixa, a.graus, 84) : ''}
     </a>`).join('') : `<div class="empty">${Object.keys(S.alunos).length ? 'Nenhum aluno com esses filtros.' : 'Nenhum aluno cadastrado. Toque em "Novo aluno" para começar.'}</div>`;
 }
@@ -549,6 +560,7 @@ function viewAluno(id){
       ${usaFaixa(a) ? `<button class="btn primary" data-act="graduar" data-id="${id}">Registrar graduação</button>` : ''}
       <button class="btn ghost" data-act="editar-aluno" data-id="${id}">Editar</button>
       ${tel ? `<a class="btn ghost" href="${waLink(tel, `Olá, ${a.nome.split(' ')[0]}!`)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+      ${S.config.facial ? `<button class="btn ghost" data-act="rosto" data-id="${id}">Rosto ${a.consBio ? `(${(a.rosto || []).length})` : '(sem autorização)'}</button>` : ''}
     </div>
   </div>
   <div class="panel">
@@ -572,7 +584,7 @@ function viewAluno(id){
       ${kv('Nascimento', a.nascimento ? `${fmtBR(a.nascimento)} (${idadeReal(a.nascimento)} anos)` : '')}
       ${kv('Sexo', esc(a.sexo))}
       ${kv('Modalidades', (a.mods || []).map(m => esc(mod(m)?.nome)).join(', '))}
-      ${kv('Situação', esc(a.status === 'novo' ? 'Novo cadastro, aguardando revisão' : a.status))}
+      ${kv('Situação', esc(a.status === 'novo' ? 'Novo cadastro, aguardando revisão' : a.status) + ((a.historicoStatus || []).length ? ` desde ${fmtBR(a.historicoStatus.slice().sort((x, y) => x.data.localeCompare(y.data)).slice(-1)[0].data)}` : ''))}
       ${kv('Equipe de competição', a.atleta ? 'Sim' : '')}
       ${kv('Matrícula', fmtBR(a.dataMatricula))}
       ${kv('Telefone', esc(a.telefone))}
@@ -585,9 +597,9 @@ function viewAluno(id){
       ${kv('Peso', a.peso ? `${esc(a.peso)} kg` : '')}
       ${kv('Indicado por', esc(a.indicadoPor))}
       ${kv('Uso de imagem', a.consImagem ? 'Autorizado' : 'Não autorizado')}
-      ${kv('Reconhecimento facial', a.consBio ? 'Autorizado' : 'Não autorizado')}
+      ${S.config.facial ? kv('Reconhecimento facial', a.consBio ? 'Autorizado' : 'Não autorizado') : ''}
       ${kv('Observações', esc(a.obs))}
-      ${isAdmin() ? kv('Plano', plano ? `${esc(plano.nome)}, R$ ${plano.valor}/mês` : 'Não definido') + kv('Vencimento', a.vencimento ? `Dia ${a.vencimento}` : '') + kv('Bolsa', a.bolsa && a.bolsa !== 'nenhuma' ? (a.bolsa === 'integral' ? 'Integral' : `Parcial, ${a.bolsaPct || 0}%`) : '') + kv('Desconto', a.desconto ? `R$ ${a.desconto} (${esc(a.descontoMotivo || 'sem motivo')})` : '') : ''}
+      ${isAdmin() ? kv('Plano', plano ? `${esc(plano.nome)}, R$ ${plano.valor}/mês` : 'Não definido') + kv('Vencimento', a.vencimento ? `Dia ${a.vencimento}` : '') + kv('Bolsa', a.bolsa && a.bolsa !== 'nenhuma' ? (a.bolsa === 'professor' ? 'Isento (professor ou instrutor)' : a.bolsa === 'integral' ? 'Integral' : `Parcial, ${a.bolsaPct || 0}%`) : '') + kv('Desconto', a.desconto ? `R$ ${a.desconto} (${esc(a.descontoMotivo || 'sem motivo')})` : '') : ''}
     </dl>
   </div>
   ${isAdmin() ? `<button class="btn danger" data-act="excluir-aluno" data-id="${id}">Excluir aluno</button>` : ''}`;
@@ -607,14 +619,15 @@ function formAluno(id){
       </div>
       <div class="field"><label for="nome">Nome completo</label><input type="text" id="nome" name="nome" required value="${esc(a.nome)}"></div>
       <div class="grid3">
-        <div class="field"><label for="nasc">Nascimento</label><input type="date" id="nasc" name="nascimento" value="${esc(a.nascimento)}"></div>
-        <div class="field"><label for="sexo">Sexo</label><select id="sexo" name="sexo">${opt('', 'Selecione')}${opt('Masculino','Masculino',a.sexo === 'Masculino')}${opt('Feminino','Feminino',a.sexo === 'Feminino')}</select></div>
+        <div class="field"><label for="nasc">Nascimento *</label><input type="date" id="nasc" name="nascimento" required value="${esc(a.nascimento)}"></div>
+        <div class="field"><label for="sexo">Sexo *</label><select id="sexo" name="sexo" required>${opt('', 'Selecione')}${opt('Masculino','Masculino',a.sexo === 'Masculino')}${opt('Feminino','Feminino',a.sexo === 'Feminino')}</select></div>
         <div class="field"><label for="peso">Peso (kg)</label><input type="number" step="0.1" id="peso" name="peso" value="${esc(a.peso)}"></div>
       </div>
       <div class="grid2">
         <div class="field"><label for="cpf">CPF</label><input type="text" id="cpf" name="cpf" inputmode="numeric" value="${esc(a.cpf)}"></div>
-        <div class="field"><label for="status">Situação</label><select id="status" name="status">${opt('novo','Novo cadastro (revisar)',a.status === 'novo')}${opt('ativo','Ativo',a.status === 'ativo')}${opt('trancado','Trancado',a.status === 'trancado')}${opt('inativo','Inativo',a.status === 'inativo')}</select></div>
+        <div class="field"><label for="status">Situação</label><select id="status" name="status" data-original="${esc(a.status)}">${opt('novo','Novo cadastro (revisar)',a.status === 'novo')}${opt('ativo','Ativo',a.status === 'ativo')}${opt('trancado','Trancado',a.status === 'trancado')}${opt('inativo','Inativo',a.status === 'inativo')}</select></div>
       </div>
+      <div class="field" id="boxDataStatus" style="display:none;max-width:280px"><label for="dataStatus">Mudança de situação vale a partir de</label><input type="date" id="dataStatus" name="dataStatus" value="${hoje()}"></div>
     </fieldset>
     <fieldset><legend>Contato</legend>
       <div class="grid2">
@@ -648,7 +661,7 @@ function formAluno(id){
         <div class="field"><label for="venc">Dia de vencimento</label><input type="number" min="1" max="31" id="venc" name="vencimento" value="${esc(a.vencimento || 10)}"></div>
       </div>
       <div class="grid3">
-        <div class="field"><label for="bolsa">Bolsa</label><select id="bolsa" name="bolsa">${opt('nenhuma','Nenhuma',a.bolsa === 'nenhuma')}${opt('parcial','Parcial',a.bolsa === 'parcial')}${opt('integral','Integral',a.bolsa === 'integral')}</select></div>
+        <div class="field"><label for="bolsa">Bolsa</label><select id="bolsa" name="bolsa">${opt('nenhuma','Nenhuma',a.bolsa === 'nenhuma')}${opt('parcial','Parcial',a.bolsa === 'parcial')}${opt('integral','Integral',a.bolsa === 'integral')}${opt('professor','Isento: professor ou instrutor',a.bolsa === 'professor')}</select></div>
         <div class="field"><label for="bpct">% da bolsa parcial</label><input type="number" min="0" max="100" id="bpct" name="bolsaPct" value="${esc(a.bolsaPct)}"></div>
         <div class="field"><label for="desc">Desconto (R$/mês)</label><input type="number" min="0" id="desc" name="desconto" value="${esc(a.desconto)}"></div>
       </div>
@@ -656,7 +669,7 @@ function formAluno(id){
     </fieldset>` : ''}
     <fieldset><legend>Autorizações (LGPD)</legend>
       <label class="check" style="margin-bottom:8px"><input type="checkbox" name="consImagem" ${a.consImagem ? 'checked' : ''}>Autoriza uso de imagem em fotos e redes sociais</label>
-      <label class="check"><input type="checkbox" name="consBio" ${a.consBio ? 'checked' : ''}>Autoriza reconhecimento facial para presença</label>
+      ${S.config.facial ? `<label class="check"><input type="checkbox" name="consBio" ${a.consBio ? 'checked' : ''}>Autoriza reconhecimento facial para presença</label>` : ''}
     </fieldset>
     <div class="field"><label for="obs">Observações</label><textarea id="obs" name="obs">${esc(a.obs)}</textarea></div>
     <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">${id ? 'Salvar alterações' : 'Cadastrar aluno'}</button></div>
@@ -675,19 +688,53 @@ function formAluno(id){
     };
     rd.readAsDataURL(file);
   });
-  $('#fAluno').addEventListener('submit', e => {
-    e.preventDefault();
+  const orig = id && S.alunos[id] ? JSON.parse(JSON.stringify(S.alunos[id])) : null;
+  const selSt = $('#status'), boxSt = $('#boxDataStatus');
+  selSt.addEventListener('change', () => { boxSt.style.display = id && selSt.value !== selSt.dataset.original ? '' : 'none'; });
+  let enviando = false;
+  $('#fAluno').addEventListener('submit', async e => {
+    e.preventDefault(); if (enviando) return;
     const fd = new FormData(e.target), o = {};
     for (const [k, v] of fd.entries()) if (k !== 'mods') o[k] = typeof v === 'string' ? v.trim() : v;
     o.mods = fd.getAll('mods');
-    o.consImagem = fd.has('consImagem'); o.consBio = fd.has('consBio'); o.atleta = fd.has('atleta');
+    o.consImagem = fd.has('consImagem'); o.consBio = S.config.facial ? fd.has('consBio') : !!(id && S.alunos[id] && S.alunos[id].consBio); o.atleta = fd.has('atleta');
+    const dataStatus = o.dataStatus || hoje(); delete o.dataStatus;
+    o.nome = (o.nome || '').replace(/\s+/g, ' ');
     if (!o.nome) return toast('Informe o nome do aluno.');
+    if (!o.nascimento || o.nascimento > hoje()) return toast('Informe uma data de nascimento válida.');
+    if (!o.sexo) return toast('Informe o sexo (usado nas categorias de competição).');
+    const menor = idadeReal(o.nascimento) < 18;
+    if (menor && (!o.responsavel || !o.telResp)) return toast('Aluno menor de idade: informe o responsável e o telefone dele.');
+    const dig = t => String(t || '').replace(/\D/g, '');
+    if (o.telefone && ![10, 11, 12, 13].includes(dig(o.telefone).length)) return toast('Telefone do aluno parece incompleto. Use DDD + número.');
+    if (o.telResp && ![10, 11, 12, 13].includes(dig(o.telResp).length)) return toast('Telefone do responsável parece incompleto. Use DDD + número.');
+    if (o.cpf && !cpfValido(o.cpf)) return toast('CPF inválido. Confira os números ou deixe em branco.');
+    if (!o.mods.length && o.status === 'ativo') return toast('Marque ao menos uma modalidade para aluno ativo.');
+    const dup = Object.values(S.alunos).find(x => x.id !== id && norm(x.nome) === norm(o.nome));
+    enviando = true;
+    try {
+      if (dup && !(await confirmar(`Já existe um aluno chamado ${dup.nome}${dup.nascimento ? `, nascido em ${fmtBR(dup.nascimento)}` : ''}. Salvar mesmo assim?`, 'Salvar mesmo assim'))){ enviando = false; return formAluno(id); }
+      if (isAdmin() && o.status === 'ativo' && !o.plano && o.bolsa !== 'professor' && !(await confirmar('Aluno ativo sem plano não entra na cobrança de mensalidades. Salvar mesmo assim?', 'Salvar sem plano'))){ enviando = false; return; }
+    } catch(err){ enviando = false; return; }
     if (id){
-      if (!S.alunos[id]) return toast('Este aluno foi excluído por outro professor.');
-      Object.assign(S.alunos[id], o);
+      const a = S.alunos[id];
+      if (!a){ enviando = false; return toast('Este aluno foi excluído por outro usuário.'); }
+      const antigo = orig.status;
+      // só grava o que foi realmente alterado neste formulário, para não sobrescrever mudanças feitas em outro aparelho
+      Object.entries(o).forEach(([k, v]) => {
+        const antes = orig[k];
+        const igual = Array.isArray(v) ? JSON.stringify(antes || []) === JSON.stringify(v) : String(antes ?? '') === String(v ?? '');
+        if (!igual) a[k] = v;
+      });
+      if (!o.consBio) delete a.rosto;
+      if (antigo !== o.status){
+        a.historicoStatus = [...(a.historicoStatus || []), {data:dataStatus, status:o.status, anterior:antigo, por:quem()}];
+        registrar(`Situação de ${a.nome}: ${antigo} para ${o.status} (a partir de ${fmtBR(dataStatus)})`);
+      } else registrar(`Editou a ficha de ${a.nome}`);
     } else {
       const nid = uid(); o.graus = Number(o.graus) || 0;
-      S.alunos[nid] = {...o, id:nid, historico:[{id:uid(), tipo:'faixa', faixa:o.faixa, graus:o.graus, data:o.dataFaixa || hoje(), obs:'Faixa no cadastro'}]};
+      S.alunos[nid] = {...o, id:nid, historicoStatus:[], historico:[{id:uid(), tipo:'faixa', faixa:o.faixa, graus:o.graus, data:o.dataFaixa || hoje(), obs:'Faixa no cadastro'}]};
+      registrar(`Cadastrou o aluno ${o.nome}`);
       location.hash = `#/aluno/${nid}`;
     }
     salvar(); fecharModal(); render(); toast(id ? 'Alterações salvas' : 'Aluno cadastrado');
@@ -732,13 +779,14 @@ function formGraduacao(id){
     a.faixa = reg.faixa; a.graus = reg.graus;
     if (fd.tipo === 'faixa') a.dataFaixa = reg.data;
     a.dataGrau = reg.data; S.meta.ultimoProf = fd.prof;
+    registrar(`Graduação de ${a.nome}: ${reg.tipo === 'grau' ? `${reg.graus}º grau` : `faixa ${faixa(reg.faixa).nome}`} em ${fmtBR(reg.data)}`);
     salvar(); fecharModal(); render(); toast('Graduação registrada');
   });
 }
 
 /* ============ Presença ============ */
 function viewPresenca(){
-  const tabs = [['chamada','Chamada'],['ranking','Ranking'],['sumidos','Alunos sumidos']];
+  const tabs = [['chamada','Chamada'],['ranking','Ranking'],['sumidos','Alunos sumidos'],['professores','Professores']];
   let corpo = '';
   if (ui.presTab === 'chamada'){
     const dow = parseD(ui.presData).getDay();
@@ -748,8 +796,10 @@ function viewPresenca(){
     <div class="list agenda">${aulas.length ? aulas.map(t => {
       const m = mod(t.mod) || {nome:'?', cor:'#999'}; const p = S.presencas[`${ui.presData}_${t.id}`];
       const n = p ? Object.keys(p.alunos || {}).length : 0;
-      return `<a class="aula" href="#/chamada/${ui.presData}/${t.id}"><span class="hora">${t.hora}</span><span class="mod"><i class="dot" style="background:${m.cor}"></i>${esc(m.nome)}</span><span class="${n ? 'tag ok' : 'btn small primary'}">${n ? `${n} presente${n > 1 ? 's' : ''}` : 'Fazer chamada'}</span></a>`;
+      return `<a class="aula" href="#/chamada/${ui.presData}/${t.id}"><span class="hora">${t.hora}</span><span class="mod"><i class="dot" style="background:${m.cor}"></i><span>${esc(m.nome)}${p && p.prof ? `<br><span class="muted small" style="font-weight:400">${esc(p.prof)}</span>` : ''}</span></span><span class="${n ? 'tag ok' : 'btn small primary'}">${n ? `${n} presente${n > 1 ? 's' : ''}` : 'Fazer chamada'}</span></a>`;
     }).join('') : `<div class="empty">Não há aulas na grade de ${DIAS[dow].toLowerCase()}. Ajuste a grade em Ajustes.</div>`}</div>`;
+  } else if (ui.presTab === 'professores'){
+    corpo = viewProfessores();
   } else if (ui.presTab === 'ranking'){
     corpo = viewRanking();
   } else {
@@ -807,8 +857,9 @@ function viewChamada(data, tid){
   return `<p><a href="#/presenca" class="muted small">Voltar para presença</a></p>
   <h1 style="display:flex;align-items:center;gap:10px"><i class="dot" style="background:${m.cor};width:14px;height:14px"></i>${esc(m.nome)}</h1>
   <p class="muted">${DIAS[parseD(data).getDay()]}, ${fmtBR(data)}, ${t.hora}</p>
+  <div class="field" style="max-width:360px"><label for="profAula">Professor da aula</label><input type="text" id="profAula" list="dlProfs" value="${esc((S.presencas[`${data}_${tid}`] || {}).prof || '')}" placeholder="${esc(profPadrao() || 'Nome do professor')}" autocomplete="off"><datalist id="dlProfs">${nomesProfessores().map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
   <div class="sticky-count"><span><span class="big-count" id="nPres">0</span> <span class="muted">presentes</span></span>
-    <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small ghost" data-act="add-outro" data-data="${data}" data-t="${tid}">Aluno de outra turma</button><button class="btn small ghost" data-act="limpar-chamada" data-data="${data}" data-t="${tid}">Desmarcar todos</button></span></div>
+    <span style="display:flex;gap:8px;flex-wrap:wrap">${S.config.facial ? '<label class="btn small primary">Chamada por foto<input type="file" accept="image/*" id="fotoTurma" hidden></label>' : ''}<button class="btn small ghost" data-act="add-outro" data-data="${data}" data-t="${tid}">Aluno de outra turma</button><button class="btn small ghost" data-act="limpar-chamada" data-data="${data}" data-t="${tid}">Desmarcar todos</button></span></div>
   <input type="search" id="chamadaBusca" placeholder="Buscar na turma" value="${esc(ui.chamadaBusca)}" style="margin-bottom:12px" aria-label="Buscar aluno na turma">
   <div class="list chamada" id="listaChamada"></div>
   <p class="muted small">Cada toque salva na hora. Pode fechar a tela quando terminar.</p>`;
@@ -832,6 +883,7 @@ function listaChamada(data, tid){
 }
 function togglePres(id, key, data, tid){
   const p = S.presencas[key] ||= {data, turma:tid, alunos:{}};
+  if (!p.prof){ const v = ($('#profAula') || {}).value || profPadrao(); if (v) p.prof = v; }
   if (p.alunos[id]) delete p.alunos[id]; else p.alunos[id] = true;
   if (!Object.keys(p.alunos).length) delete S.presencas[key];
   salvar(); listaChamada(data, tid);
@@ -881,7 +933,10 @@ function viewMais(){
       <input type="text" value="${esc(m.nome)}" data-bind="modalidades.${i}.nome" aria-label="Nome da modalidade">
       <label class="check" style="white-space:nowrap"><input type="checkbox" data-mod-faixa="${i}" ${m.faixa ? 'checked' : ''}>Usa faixa</label>
       <button class="btn small danger" data-act="del-mod" data-id="${m.id}">Remover</button></div>`).join('')}</div>
-      <button class="btn ghost" style="margin-top:12px" data-act="add-mod">Adicionar modalidade</button>`;
+      <button class="btn ghost" style="margin-top:12px" data-act="add-mod">Adicionar modalidade</button>
+      <div class="panel" style="margin-top:22px"><h3 style="margin-bottom:6px">Recursos opcionais</h3>
+      <label class="check"><input type="checkbox" data-facial ${S.config.facial ? 'checked' : ''}>Chamada por reconhecimento facial</label>
+      <p class="muted small">Desligado. Para usar, é preciso ter a autorização de reconhecimento facial no formulário de cadastro (LGPD). Ao desligar, os botões somem, mas nada é apagado.</p></div>`;
   } else if (ui.maisTab === 'planos'){
     c = `<h3 style="margin-bottom:8px">Planos</h3><p class="muted small">Valor mensal cobrado. Semestral e anual: informe o valor por mês.</p>
     <div class="tbl-wrap"><table><thead><tr><th>Nome</th><th>R$/mês</th><th>Duração</th><th>Modalidades cobertas</th><th></th></tr></thead><tbody>
@@ -897,6 +952,9 @@ function viewMais(){
     ${S.config.custos.fixos.map((f, i) => `<tr><td><input type="text" value="${esc(f.nome)}" data-bind="custos.fixos.${i}.nome" aria-label="Nome do custo"></td><td style="width:130px"><input type="number" value="${f.valor}" data-bind="custos.fixos.${i}.valor" data-num aria-label="Valor"></td><td><button class="btn small danger" data-act="del-custo" data-i="${i}">Remover</button></td></tr>`).join('')}
     </tbody></table></div><button class="btn ghost" style="margin-top:12px" data-act="add-custo">Adicionar custo fixo</button>
     <p class="muted small">Custos variáveis (manutenção, compras, eventos) são lançados em Financeiro, Receitas e custos.</p>
+    <h3 style="margin:26px 0 8px">Início do controle financeiro</h3>
+    <div class="field" style="max-width:260px"><label for="cfIni">Cobrar mensalidades a partir de</label><input type="month" id="cfIni" value="${esc(S.config.inicioFinanceiro)}" data-bind="inicioFinanceiro"></div>
+    <p class="muted small">Meses anteriores a este não geram mensalidade nem aparecem como atraso. Use o mês em que vocês começaram a registrar os pagamentos no app.</p>
     <h3 style="margin:26px 0 8px">Cobrança pelo WhatsApp</h3>
     <div class="field" style="max-width:420px"><label for="cfPix">Chave Pix da academia</label><input type="text" id="cfPix" value="${esc(S.config.pix)}" data-bind="pix" placeholder="CNPJ, e-mail, telefone ou chave aleatória"></div>
     <div class="field"><label for="cfMsg">Mensagem de cobrança</label><textarea id="cfMsg" data-bind="msgCobranca">${esc(S.config.msgCobranca)}</textarea></div>
@@ -919,6 +977,7 @@ function viewMais(){
     <div class="panel"><h3 style="margin-bottom:8px">Backup</h3>
       <p class="muted small">Os dados deste modo de teste ficam só neste navegador. Copie o backup para guardar ou levar os dados para a versão online.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="copiar-backup">Copiar backup</button><button class="btn ghost" data-act="importar">Restaurar backup</button></div></div>
+    ${isAdmin() ? painelSeguranca() : ''}
     <div class="panel"><h3 style="margin-bottom:8px">Dados de exemplo</h3>
       <p class="muted small">Cria 16 alunos fictícios com dois meses de presenças, 7 atletas e 2 campeonatos para você explorar as telas.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="exemplo">Carregar exemplos</button><button class="btn danger" data-act="limpar">Apagar todos os dados</button></div></div>`;
@@ -1133,7 +1192,7 @@ function formCampeonato(id){
     <p class="muted small">A lista mostra os atletas da equipe. A categoria é preenchida automaticamente pelo último peso e pode ser editada.</p>
     <div class="field"><label for="cob">Observações</label><textarea id="cob" name="obs">${esc(c.obs)}</textarea></div>
     ${c.link ? `<p><a href="${esc(c.link)}" target="_blank" rel="noopener">Abrir edital</a></p>` : ''}
-    <div class="actions">${id ? `<button type="button" class="btn danger" data-act="camp-del" data-id="${id}" style="margin-right:auto">Excluir</button>` : ''}<button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+    <div class="actions">${id && isAdmin() ? `<button type="button" class="btn danger" data-act="camp-del" data-id="${id}" style="margin-right:auto">Excluir</button>` : ''}<button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
   const ler = () => {
     const fd = new FormData($('#fCamp'));
     ['nome','data','prazo','local','federacao','formato','valor','link','obs'].forEach(k => { c[k] = fd.get(k); });
@@ -1148,7 +1207,7 @@ function formCampeonato(id){
       $('#novoIns').querySelector(`option[value="${aid}"]`).remove(); redesenhar(); },
     rem(k){ ler(); c.inscritos.splice(k, 1); redesenhar(); }
   };
-  $('#fCamp').addEventListener('submit', e => { e.preventDefault(); ler(); if (!c.nome) return toast('Informe o nome do campeonato.'); S.campeonatos[c.id] = c; salvar(); fecharModal(); render(); toast('Campeonato salvo'); });
+  $('#fCamp').addEventListener('submit', e => { e.preventDefault(); ler(); if (!c.nome) return toast('Informe o nome do campeonato.'); registrar(`${S.campeonatos[c.id] ? 'Editou' : 'Cadastrou'} o campeonato ${c.nome}`); S.campeonatos[c.id] = c; salvar(); fecharModal(); render(); toast('Campeonato salvo'); });
 }
 function compCategorias(){
   const cp = comp(), ed = ui.compEdit;
@@ -1245,7 +1304,7 @@ function formPeso(id){
     e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
     const a = S.alunos[id]; if (!a) return toast('Aluno não encontrado.');
     a.pesos ||= []; a.pesos.push({data:fd.data, kg:Number(fd.kg)}); a.pesos.sort((x, y) => x.data.localeCompare(y.data));
-    a.peso = ultimoPeso(a); a.pesoAlvo = fd.alvo; salvar(); fecharModal(); render(); toast('Peso registrado');
+    a.peso = ultimoPeso(a); a.pesoAlvo = fd.alvo; registrar(`Registrou peso de ${a.nome}: ${fd.kg} kg`); salvar(); fecharModal(); render(); toast('Peso registrado');
   });
 }
 
@@ -1332,8 +1391,155 @@ function importarForms(txt){
       bolsa:'nenhuma', origem:'Google Forms', historico:[{id:uid(), tipo:'faixa', faixa:fx, graus:0, data:dm, obs:'Faixa informada no cadastro'}]};
     existentes.add(norm(nomeFmt) + '|' + nasc); novos++;
   });
+  if (novos) registrar(`Importou ${novos} cadastro(s) do Google Forms`);
   salvar();
   return {novos, dup};
+}
+
+/* ============ Professor da aula ============ */
+const profPadrao = () => S.meta.ultimoProf || S.meta.nome || '';
+function nomesProfessores(){
+  const set = new Set([S.meta.nome, S.meta.ultimoProf].filter(Boolean));
+  Object.values(S.presencas).forEach(p => { if (p.prof) set.add(p.prof); });
+  return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+function viewProfessores(){
+  const m = ui.profMes;
+  const aulas = Object.values(S.presencas).filter(p => (p.data || '').startsWith(m) && Object.keys(p.alunos || {}).length);
+  const grupos = {};
+  aulas.forEach(p => { const nome = p.prof || 'Não informado'; (grupos[nome] ||= []).push(p); });
+  const lista = Object.entries(grupos).sort((a, b) => b[1].length - a[1].length);
+  return `<div class="filters" style="align-items:flex-end"><div class="field" style="max-width:220px;margin:0"><label for="profMes">Mês</label><input type="month" id="profMes" value="${m}"></div></div>
+  <p class="muted small">Aulas com pelo menos um aluno presente, agrupadas pelo professor registrado na chamada. Para corrigir o professor de uma aula, abra a aula e troque o nome.</p>
+  ${lista.length ? lista.map(([nome, ps]) => {
+    const tot = ps.reduce((s, p) => s + Object.keys(p.alunos).length, 0);
+    const porMod = {}; ps.forEach(p => { const md = mod(turma(p.turma)?.mod)?.nome || 'Outra'; porMod[md] = (porMod[md] || 0) + 1; });
+    return `<div class="panel"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3>${esc(nome)}</h3><span><strong style="font-family:var(--cond);font-size:28px">${ps.length}</strong> <span class="muted">aula${ps.length > 1 ? 's' : ''}</span></span></div>
+      <p class="muted small" style="margin:4px 0 10px">${tot} presenças no total, média de ${(tot / ps.length).toFixed(1)} alunos por aula. ${Object.entries(porMod).map(([k, v]) => `${esc(k)}: ${v}`).join(', ')}.</p>
+      <details><summary class="small" style="cursor:pointer">Ver aulas</summary><div class="list" style="margin-top:8px">${ps.sort((a, b) => b.data.localeCompare(a.data)).map(p => { const t = turma(p.turma); return `<a class="row" href="#/chamada/${p.data}/${p.turma}"><span class="grow">${fmtBR(p.data)}, ${t ? t.hora : ''} ${esc(mod(t?.mod)?.nome || '')}</span><span class="small">${Object.keys(p.alunos).length} alunos</span></a>`; }).join('')}</div></details></div>`;
+  }).join('') : '<div class="empty">Nenhuma aula registrada neste mês.</div>'}`;
+}
+
+/* ============ Reconhecimento facial ============ */
+const FACE_CDN = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15';
+let faceProm = null;
+function carregarFace(){
+  if (faceProm) return faceProm;
+  faceProm = new Promise((res, rej) => {
+    if (window.faceapi) return res();
+    const s = document.createElement('script'); s.src = FACE_CDN + '/dist/face-api.js';
+    s.onload = res; s.onerror = () => rej(new Error('script')); document.head.appendChild(s);
+  }).then(async () => {
+    const tf = faceapi.tf;
+    let ok = false;
+    try { ok = await tf.setBackend('webgl'); } catch(e){ ok = false; }
+    if (!ok) await tf.setBackend('cpu');
+    await tf.ready();
+    const M = FACE_CDN + '/model/';
+    await faceapi.nets.ssdMobilenetv1.loadFromUri(M);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(M);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(M);
+  }).catch(e => { faceProm = null; throw e; });
+  return faceProm;
+}
+function lerImagem(fonte, max = 1280){
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      if (typeof fonte !== 'string') URL.revokeObjectURL(img.src);
+      res(c);
+    };
+    img.onerror = () => rej(new Error('imagem'));
+    img.src = typeof fonte === 'string' ? fonte : URL.createObjectURL(fonte);
+  });
+}
+const descParaLista = d => Array.from(d).map(x => Math.round(x * 10000) / 10000);
+const avisoCarregando = t => abrirModal(`<h2>${t}</h2><p class="muted">Na primeira vez, o aparelho baixa o reconhecimento facial (cerca de 12 MB). Depois ele fica guardado e as próximas análises são bem mais rápidas.</p><p><strong>Aguarde...</strong></p>`);
+const erroFace = () => { fecharModal(); toast('Não foi possível carregar o reconhecimento facial. Ele funciona na versão online do app, com internet.'); };
+function formRosto(id){
+  const a = S.alunos[id]; if (!a) return;
+  const n = (a.rosto || []).length;
+  abrirModal(`<h2>Reconhecimento facial</h2><p><strong>${esc(a.nome)}</strong></p>
+    ${a.consBio ? `<p>${n ? `${n} foto${n > 1 ? 's' : ''} de referência cadastrada${n > 1 ? 's' : ''}.` : 'Nenhuma foto de referência ainda.'} O ideal são 2 ou 3 fotos: de frente, com boa luz, só o aluno na imagem. Fotos em ângulos diferentes melhoram o reconhecimento.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn primary">Tirar ou escolher foto<input type="file" accept="image/*" id="inRosto" hidden></label>
+    ${a.foto ? `<button class="btn ghost" data-act="rosto-ficha" data-id="${id}">Usar a foto da ficha</button>` : ''}
+    ${n ? `<button class="btn danger" data-act="rosto-apagar" data-id="${id}">Apagar dados faciais</button>` : ''}</div>
+    <p class="muted small">O app guarda só uma "assinatura numérica" do rosto, não a foto. Ela é usada apenas para a chamada por foto.</p>`
+    : `<div class="notice">Este aluno não autorizou o reconhecimento facial. Para usar, marque a autorização na ficha (com consentimento do aluno ou, se menor, do responsável).</div>`}
+    <div class="actions"><button class="btn ghost" data-act="fechar">Fechar</button></div>`);
+  const inp = $('#inRosto'); if (inp) inp.addEventListener('change', e => { const f = e.target.files[0]; if (f) cadastrarRosto(id, f); });
+}
+async function cadastrarRosto(id, fonte){
+  avisoCarregando('Lendo o rosto');
+  try { await carregarFace(); } catch(e){ return erroFace(); }
+  try {
+    const c = await lerImagem(fonte, 800);
+    const r = await faceapi.detectSingleFace(c, new faceapi.SsdMobilenetv1Options({minConfidence:0.4})).withFaceLandmarks().withFaceDescriptor();
+    if (!r){ fecharModal(); return toast('Nenhum rosto encontrado nessa foto. Tente uma foto de frente, com boa luz.'); }
+    const a = S.alunos[id]; a.rosto = [...(a.rosto || []), descParaLista(r.descriptor)].slice(-5);
+    salvar(); toast('Rosto cadastrado'); formRosto(id);
+  } catch(e){ fecharModal(); toast('Não foi possível ler essa imagem.'); }
+}
+let _fr = null;
+async function chamadaPorFoto(data, tid, arquivo){
+  const base = alunosAtivos().filter(a => a.consBio && (a.rosto || []).length);
+  if (!base.length) return toast('Nenhum aluno com rosto cadastrado ainda. Cadastre na ficha de cada aluno, em Reconhecimento facial.');
+  avisoCarregando('Analisando a foto da turma');
+  try { await carregarFace(); } catch(e){ return erroFace(); }
+  let c, dets;
+  try {
+    c = await lerImagem(arquivo, 1600);
+    dets = await faceapi.detectAllFaces(c, new faceapi.SsdMobilenetv1Options({minConfidence:0.35})).withFaceLandmarks().withFaceDescriptors();
+  } catch(e){ fecharModal(); return toast('Não foi possível analisar essa imagem.'); }
+  const matcher = new faceapi.FaceMatcher(base.map(a => new faceapi.LabeledFaceDescriptors(a.id, a.rosto.map(d => new Float32Array(d)))), 0.5);
+  const melhor = {}; const desconhecidos = [];
+  dets.forEach((d, i) => {
+    const m = matcher.findBestMatch(d.descriptor);
+    if (m.label === 'unknown'){ desconhecidos.push(i); return; }
+    if (!melhor[m.label] || m.distance < melhor[m.label].dist){ if (melhor[m.label]) desconhecidos.push(melhor[m.label].i); melhor[m.label] = {i, dist:m.distance}; }
+    else desconhecidos.push(i);
+  });
+  // desenha caixas e recorta rostos não reconhecidos
+  const out = document.createElement('canvas'); out.width = c.width; out.height = c.height;
+  const ctx = out.getContext('2d'); ctx.drawImage(c, 0, 0); ctx.lineWidth = Math.max(2, c.width / 400); const fs = Math.round(Math.max(14, c.width / 60)); ctx.font = `600 ${fs}px Barlow, sans-serif`;
+  const recortes = {};
+  dets.forEach((d, i) => {
+    const b = d.detection.box, id = Object.keys(melhor).find(k => melhor[k].i === i);
+    ctx.strokeStyle = id ? '#1E9E55' : '#E3344A'; ctx.strokeRect(b.x, b.y, b.width, b.height);
+    const txt = id ? S.alunos[id].nome.split(' ')[0] : String(desconhecidos.indexOf(i) + 1);
+    ctx.fillStyle = id ? '#1E9E55' : '#E3344A'; const tw = ctx.measureText(txt).width + 10, th = fs + 8;
+    ctx.fillRect(b.x, Math.max(0, b.y - th), tw, th); ctx.fillStyle = '#fff'; ctx.fillText(txt, b.x + 5, Math.max(th - 6, b.y - 6));
+    if (!id){ const r = document.createElement('canvas'), pad2 = b.width * 0.25; r.width = r.height = 72;
+      r.getContext('2d').drawImage(c, Math.max(0, b.x - pad2), Math.max(0, b.y - pad2), b.width + pad2 * 2, b.height + pad2 * 2, 0, 0, 72, 72); recortes[i] = r.toDataURL('image/jpeg', 0.8); }
+  });
+  _fr = {data, tid, dets};
+  const ids = Object.keys(melhor).sort((x, y) => S.alunos[x].nome.localeCompare(S.alunos[y].nome, 'pt-BR'));
+  const opcoesAlunos = base.concat(alunosAtivos().filter(a => a.consBio && !(a.rosto || []).length)).filter(a => !melhor[a.id]).sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+  abrirModal(`<h2>Chamada por foto</h2>
+    <p class="muted small">${dets.length} rosto(s) encontrados, ${ids.length} reconhecido(s). Confira antes de confirmar: o reconhecimento pode errar com rosto de lado, de longe ou com pouca luz.</p>
+    <img src="${out.toDataURL('image/jpeg', 0.85)}" alt="Foto da turma com os rostos marcados" style="width:100%;border-radius:8px;margin-bottom:12px">
+    ${ids.length ? `<h3 style="margin-bottom:8px">Reconhecidos</h3><div class="checks" style="margin-bottom:14px">${ids.map(id => `<label class="check"><input type="checkbox" name="frOk" value="${id}" checked>${esc(S.alunos[id].nome)}</label>`).join('')}</div>` : ''}
+    ${desconhecidos.length ? `<h3 style="margin-bottom:4px">Não reconhecidos</h3><p class="muted small" style="margin:0 0 8px">Se souber quem é, escolha o nome: o aluno recebe presença e o app aprende esse rosto para as próximas chamadas.</p>
+      <div class="list" style="margin-bottom:14px">${desconhecidos.map((i, k) => `<div class="row" style="cursor:default"><img src="${recortes[i]}" alt="Rosto ${k + 1}" width="56" height="56" style="border-radius:8px"><span class="tag red">${k + 1}</span><select data-fr-rosto="${i}" aria-label="Quem é o rosto ${k + 1}" style="flex:1"><option value="">Não sei / ignorar</option>${opcoesAlunos.map(a => `<option value="${a.id}">${esc(a.nome)}</option>`).join('')}</select></div>`).join('')}</div>` : ''}
+    <div class="actions"><button class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" data-act="fr-ok">Confirmar presença</button></div>`);
+}
+function confirmarFotoChamada(){
+  if (!_fr) return;
+  const {data, tid, dets} = _fr, key = `${data}_${tid}`;
+  const p = S.presencas[key] ||= {data, turma:tid, alunos:{}};
+  p.prof ||= profPadrao();
+  let n = 0;
+  document.querySelectorAll('[name=frOk]:checked').forEach(el => { if (!p.alunos[el.value]) n++; p.alunos[el.value] = true; });
+  document.querySelectorAll('[data-fr-rosto]').forEach(sel => {
+    if (!sel.value) return; const a = S.alunos[sel.value]; if (!a || !a.consBio) return;
+    a.rosto = [...(a.rosto || []), descParaLista(dets[Number(sel.dataset.frRosto)].descriptor)].slice(-5);
+    if (!p.alunos[a.id]) n++; p.alunos[a.id] = true;
+  });
+  if (!Object.keys(p.alunos).length) delete S.presencas[key];
+  _fr = null; salvar(); fecharModal(); listaChamada(data, tid); toast(`${n} presença(s) adicionada(s)`);
 }
 
 /* ============ Financeiro ============ */
@@ -1351,19 +1557,21 @@ const CAT_RECEITA = ['Aula avulsa','Seminário','Exame de graduação','Evento',
 const planoDe = a => S.config.planos.find(p => p.id === a.plano);
 function valorMensal(a){
   const p = planoDe(a); if (!p) return null;
-  if (a.bolsa === 'integral') return 0;
+  if (a.bolsa === 'integral' || a.bolsa === 'professor') return 0;
   let v = Number(p.valor) || 0;
   if (a.bolsa === 'parcial') v = v * (1 - (Number(a.bolsaPct) || 0) / 100);
   v -= Number(a.desconto) || 0;
   return Math.max(0, Math.round(v * 100) / 100);
 }
 function mensalidadesDoMes(m){
+  if (m < (S.config.inicioFinanceiro || '0000-00')) return [];
   const regs = S.fin.mensalidades[m] || {}, ids = new Set(Object.keys(regs));
-  Object.values(S.alunos).forEach(a => { if (a.status === 'ativo' && a.plano && (!a.dataMatricula || a.dataMatricula.slice(0, 7) <= m)) ids.add(a.id); });
+  Object.values(S.alunos).forEach(a => { if (cobravel(a, m)) ids.add(a.id); });
   return [...ids].filter(id => S.alunos[id]).map(id => {
     const a = S.alunos[id], r = regs[id] || null, plano = planoDe(a);
     const previsto = r && r.valor != null ? Number(r.valor) : (valorMensal(a) ?? 0);
-    const venc = `${m}-${pad(Math.min(Number(a.vencimento) || 10, diasNoMes(m)))}`;
+    let venc = `${m}-${pad(Math.min(Number(a.vencimento) || 10, diasNoMes(m)))}`;
+    if (a.dataMatricula && a.dataMatricula.slice(0, 7) === m && a.dataMatricula > venc) venc = a.dataMatricula;
     const st = r && r.pago ? 'pago' : previsto === 0 ? 'isento' : hoje() > venc ? 'atrasado' : 'aberto';
     return {a, r, plano, previsto, valor: st === 'pago' ? Number(r.valorPago ?? previsto) : previsto, venc, st};
   });
@@ -1413,20 +1621,20 @@ function barrasH(itens, fmt = fmtR){
 }
 function viewFinanceiro(){
   if (!isAdmin()) return `<div class="empty">O financeiro é visível apenas para administradores.</div>`;
-  const tabs = [['resumo','Resumo'],['mensalidades','Mensalidades'],['lancamentos','Receitas e custos'],['produtos','Produtos e vendas']];
+  const tabs = [['resumo','Resumo'],['aberto','Em atraso'],['mensalidades','Mensalidades'],['lancamentos','Receitas e custos'],['produtos','Produtos e vendas']];
   const m = ui.finMes;
   const seletor = `<div class="filters" style="align-items:flex-end"><div class="field" style="max-width:220px;margin:0"><label for="finMes">Mês</label><input type="month" id="finMes" value="${m}"></div>
     <span style="display:flex;gap:6px;flex:0"><button class="btn small ghost" data-act="finMesNav" data-n="-1" aria-label="Mês anterior">‹</button><button class="btn small ghost" data-act="finMesNav" data-n="1" aria-label="Próximo mês">›</button></span></div>`;
-  const corpo = {resumo:finResumo, mensalidades:finMensalidades, lancamentos:finLancamentos, produtos:finProdutos}[ui.finTab](m);
+  const corpo = {resumo:finResumo, aberto:finAberto, mensalidades:finMensalidades, lancamentos:finLancamentos, produtos:finProdutos}[ui.finTab](m);
   return `<div class="head"><h1>Financeiro</h1></div>
-  <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.finTab === id}" class="${ui.finTab === id ? 'on' : ''}" data-act="finTab" data-v="${id}">${t}</button>`).join('')}</div>${seletor}${corpo}`;
+  <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.finTab === id}" class="${ui.finTab === id ? 'on' : ''}" data-act="finTab" data-v="${id}">${t}</button>`).join('')}</div>${ui.finTab === 'aberto' ? '' : seletor}${corpo}`;
 }
 function finResumo(m){
   const r = resumoMes(m);
   const ini = [primeiroMesComDados(), addMes(m, -11)].sort()[1];
   const meses = []; for (let x = ini; x <= m; x = addMes(x, 1)) meses.push(x);
   const serie = meses.map(resumoMes);
-  const ativos = alunosAtivos(), semPlano = ativos.filter(a => !a.plano).length;
+  const ativos = alunosAtivos(), semPlano = ativos.filter(a => !a.plano && a.bolsa !== 'professor').length;
   const inad = r.previsto ? r.atrasado / r.previsto * 100 : 0;
   // por plano e modalidade (previsto do mês)
   const porPlano = {}, porMod = {};
@@ -1437,8 +1645,8 @@ function finResumo(m){
   });
   // bolsas e descontos
   const f = ui.finFiltro;
-  const bene = ativos.filter(a => a.plano && (a.bolsa === 'integral' || a.bolsa === 'parcial' || Number(a.desconto) > 0))
-    .filter(a => f === 'todos' || (f === 'bolsa' && a.bolsa !== 'nenhuma' && a.bolsa) || (f === 'indicacao' && a.descontoMotivo === 'Indicação') || (f === 'desconto' && Number(a.desconto) > 0))
+  const bene = ativos.filter(a => a.bolsa === 'professor' || (a.plano && (a.bolsa === 'integral' || a.bolsa === 'parcial' || Number(a.desconto) > 0)))
+    .filter(a => f === 'todos' || (f === 'bolsa' && (a.bolsa === 'integral' || a.bolsa === 'parcial')) || (f === 'professor' && a.bolsa === 'professor') || (f === 'indicacao' && a.descontoMotivo === 'Indicação') || (f === 'desconto' && Number(a.desconto) > 0))
     .filter(a => !ui.finMod || (a.mods || []).includes(ui.finMod))
     .map(a => ({a, cheio:Number(planoDe(a)?.valor) || 0, paga:valorMensal(a) || 0}));
   const renuncia = bene.reduce((s, b) => s + b.cheio - b.paga, 0);
@@ -1446,7 +1654,7 @@ function finResumo(m){
   return `${semPlano ? `<div class="notice">${semPlano} aluno(s) ativo(s) sem plano definido não entram na cobrança. <a href="#/alunos">Definir na ficha de cada um</a>.</div>` : ''}
   <div class="numeros" style="grid-template-columns:repeat(auto-fit,minmax(165px,1fr))">
     ${card(fmtR0(r.receita), 'receita recebida no mês')}${card(fmtR0(r.custos), 'custos do mês')}${card(fmtR0(r.liquido), 'resultado líquido', r.liquido >= 0 ? 'var(--ok)' : 'var(--red)')}
-    ${card(fmtR0(r.aReceber), 'mensalidades a receber')}${card(`${inad.toLocaleString('pt-BR', {maximumFractionDigits:1})}%`, 'inadimplência (atrasado ÷ previsto)', inad > 10 ? 'var(--red)' : '')}${card(fmtR0(r.ticket), `ticket médio (${r.pagantes} pagantes)`)}
+    ${card(fmtR0(r.aReceber), 'mensalidades do mês a receber')}${card(fmtR0(debitosEmAberto().reduce((s, d) => s + d.total, 0)), 'em atraso, todos os meses', 'var(--red)')}${card(`${inad.toLocaleString('pt-BR', {maximumFractionDigits:1})}%`, 'inadimplência (atrasado ÷ previsto)', inad > 10 ? 'var(--red)' : '')}${card(fmtR0(r.ticket), `ticket médio (${r.pagantes} pagantes)`)}
   </div>
   <div class="panel"><h3 style="margin-bottom:10px">Receita e custos por mês</h3><div class="tbl-wrap">${graficoMeses(meses, serie)}</div></div>
   <div class="grid2" style="gap:0 16px;align-items:start">
@@ -1458,10 +1666,10 @@ function finResumo(m){
       <p class="muted small">Quem faz mais de uma modalidade no mesmo plano tem o valor dividido igualmente entre elas.</p></div>
   </div>
   <div class="panel"><h3 style="margin-bottom:6px">Bolsas e descontos</h3>
-    <div class="filters"><select id="finFiltro" aria-label="Tipo de benefício">${[['todos','Todos os benefícios'],['bolsa','Só bolsistas'],['indicacao','Desconto por indicação'],['desconto','Qualquer desconto em R$']].map(([v, t]) => `<option value="${v}" ${f === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    <div class="filters"><select id="finFiltro" aria-label="Tipo de benefício">${[['todos','Todos os benefícios'],['bolsa','Só bolsistas'],['professor','Professores e instrutores isentos'],['indicacao','Desconto por indicação'],['desconto','Qualquer desconto em R$']].map(([v, t]) => `<option value="${v}" ${f === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <select id="finMod" aria-label="Modalidade"><option value="">Todas as modalidades</option>${S.config.modalidades.map(x => `<option value="${x.id}" ${ui.finMod === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></div>
-    <p style="margin:0 0 10px">${bene.length} aluno(s). A academia deixa de receber <strong>${fmtR(renuncia)}</strong> por mês com esses benefícios (${fmtR(renuncia * 12)} por ano).</p>
-    <div class="list">${bene.length ? bene.map(b => `<a class="row" href="#/aluno/${b.a.id}"><span class="grow"><span class="name" style="display:block">${esc(b.a.nome)}</span><span class="meta">${b.a.bolsa === 'integral' ? 'Bolsa integral' : b.a.bolsa === 'parcial' ? `Bolsa ${b.a.bolsaPct || 0}%` : ''}${Number(b.a.desconto) > 0 ? ` Desconto ${fmtR(b.a.desconto)} (${esc(b.a.descontoMotivo || 'sem motivo')})` : ''}</span></span><span class="small">${fmtR(b.paga)} <span class="muted">de ${fmtR(b.cheio)}</span></span></a>`).join('') : '<div class="empty">Nenhum aluno com esse benefício.</div>'}</div></div>`;
+    <p style="margin:0 0 10px">${bene.length} aluno(s). A academia deixa de receber <strong>${fmtR(renuncia)}</strong> por mês com esses benefícios (${fmtR(renuncia * 12)} por ano).${(() => { const pr = bene.filter(b => b.a.bolsa === 'professor'); const v = pr.reduce((s, b) => s + b.cheio, 0); return pr.length ? ` Desse total, ${fmtR(v)} são de ${pr.length} professor(es) ou instrutor(es) isento(s)${pr.some(b => !b.cheio) ? '; quem não tem plano na ficha entra com R$ 0' : ''}.` : ''; })()}</p>
+    <div class="list">${bene.length ? bene.map(b => `<a class="row" href="#/aluno/${b.a.id}"><span class="grow"><span class="name" style="display:block">${esc(b.a.nome)}</span><span class="meta">${b.a.bolsa === 'professor' ? 'Isento: professor ou instrutor' : b.a.bolsa === 'integral' ? 'Bolsa integral' : b.a.bolsa === 'parcial' ? `Bolsa ${b.a.bolsaPct || 0}%` : ''}${Number(b.a.desconto) > 0 ? ` Desconto ${fmtR(b.a.desconto)} (${esc(b.a.descontoMotivo || 'sem motivo')})` : ''}</span></span><span class="small">${fmtR(b.paga)} <span class="muted">de ${fmtR(b.cheio)}</span></span></a>`).join('') : '<div class="empty">Nenhum aluno com esse benefício.</div>'}</div></div>`;
 }
 function finMensalidades(m){
   const todas = mensalidadesDoMes(m);
@@ -1473,19 +1681,19 @@ function finMensalidades(m){
     <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap">${fmtR0(soma(['pago']))}</strong><span>recebido</span></div>
     <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap">${fmtR0(soma(['aberto']))}</strong><span>a vencer</span></div>
     <div class="num"><strong style="font-size:clamp(17px,4.6vw,22px);white-space:nowrap;color:var(--red)">${fmtR0(soma(['atrasado']))}</strong><span>atrasado</span></div></div>
-  <div class="filters"><select id="finSt" aria-label="Situação">${[['todos','Todas'],['pendentes','Pendentes'],['atrasado','Atrasadas'],['aberto','A vencer'],['pago','Pagas'],['isento','Isentas (bolsa integral)']].map(([v, t]) => `<option value="${v}" ${ui.finSt === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+  <div class="filters"><select id="finSt" aria-label="Situação">${[['todos','Todas'],['pendentes','Pendentes'],['atrasado','Atrasadas'],['aberto','A vencer'],['pago','Pagas'],['isento','Isentas (bolsa integral e professores)']].map(([v, t]) => `<option value="${v}" ${ui.finSt === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <select id="finMod" aria-label="Modalidade"><option value="">Todas as modalidades</option>${S.config.modalidades.map(x => `<option value="${x.id}" ${ui.finMod === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></div>
   <div class="list">${lst.length ? lst.map(x => {
     const tel = x.a.telefone || x.a.telResp;
     const msg = (S.config.msgCobranca || '').replace(/\{nome\}/g, x.a.nome.split(' ')[0]).replace(/\{valor\}/g, fmtR(x.valor)).replace(/\{mes\}/g, nomeMes(m)).replace(/\{vencimento\}/g, fmtBR(x.venc)).replace(/\{pix\}/g, S.config.pix || '');
     return `<div class="row" style="cursor:default;flex-wrap:wrap"><a class="grow" href="#/aluno/${x.a.id}" style="text-decoration:none;min-width:180px"><span class="name" style="display:block">${esc(x.a.nome)}</span>
-      <span class="meta">${tag[x.st]} ${esc(x.plano ? x.plano.nome : 'Sem plano')}, vence ${fmtBR(x.venc).slice(0, 5)}${x.st === 'pago' ? `, pago em ${fmtBR(x.r.dataPag)} (${esc(x.r.forma || '')})` : ''}</span></a>
+      <span class="meta">${x.st === 'isento' && x.a.bolsa === 'professor' ? '<span class="tag ok">Isento: professor</span>' : tag[x.st]} ${esc(x.plano ? x.plano.nome : 'Sem plano')}, vence ${fmtBR(x.venc).slice(0, 5)}${x.st === 'pago' ? `, pago em ${fmtBR(x.r.dataPag)} (${esc(x.r.forma || '')})` : ''}</span></a>
       <strong style="font-family:var(--cond);font-size:22px">${fmtR(x.valor)}</strong>
       <span style="display:flex;gap:6px">${x.st === 'pago' ? `<button class="btn small ghost" data-act="mens-desfazer" data-id="${x.a.id}">Desfazer</button>` : x.st === 'isento' ? '' : `<button class="btn small primary" data-act="mens-receber" data-id="${x.a.id}">Receber</button>${tel && x.st === 'atrasado' ? `<a class="btn small ghost" href="${waLink(tel, msg)}" target="_blank" rel="noopener">Cobrar</a>` : ''}`}</span></div>`;
   }).join('') : '<div class="empty">Nenhuma mensalidade com esse filtro. Alunos só entram aqui quando estão ativos e têm plano definido na ficha.</div>'}</div>`;
 }
-function formReceber(id){
-  const m = ui.finMes, x = mensalidadesDoMes(m).find(y => y.a.id === id); if (!x) return;
+function formReceber(id, mes){
+  const m = mes || ui.finMes, x = mensalidadesDoMes(m).find(y => y.a.id === id); if (!x) return;
   abrirModal(`<form id="fRec"><h2>Receber mensalidade</h2><p><strong>${esc(x.a.nome)}</strong><br><span class="muted small">${nomeMes(m)}, ${esc(x.plano ? x.plano.nome : '')}</span></p>
     <div class="grid3"><div class="field"><label for="rv">Valor recebido (R$)</label><input type="number" step="0.01" id="rv" name="valor" value="${x.previsto}" required></div>
     <div class="field"><label for="rd">Data</label><input type="date" id="rd" name="data" value="${hoje()}" required></div>
@@ -1494,7 +1702,9 @@ function formReceber(id){
     <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Confirmar recebimento</button></div></form>`);
   $('#fRec').addEventListener('submit', e => {
     e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
+    if (!(Number(fd.valor) >= 0)) return toast('Valor inválido.');
     (S.fin.mensalidades[m] ||= {})[id] = {pago:true, valor:x.previsto, valorPago:Number(fd.valor), dataPag:fd.data, forma:fd.forma, obs:fd.obs || ''};
+    registrar(`Recebeu mensalidade de ${x.a.nome} (${nomeMes(m)}): ${fmtR(fd.valor)} via ${fd.forma}`);
     salvar(); fecharModal(); render(); toast('Recebimento registrado');
   });
 }
@@ -1520,7 +1730,9 @@ function formLancamento(tipo){
     <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
   $('#fLanc').addEventListener('submit', e => {
     e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target)); const id = uid();
+    if (!(Number(fd.valor) > 0)) return toast('Informe um valor maior que zero.');
     S.fin.lancamentos[id] = {id, tipo, categoria:fd.categoria, valor:Number(fd.valor), data:fd.data, descricao:fd.descricao};
+    registrar(`Lançou ${tipo === 'custo' ? 'custo' : 'receita'}: ${fd.categoria} ${fmtR(fd.valor)}${fd.descricao ? ` (${fd.descricao})` : ''}`);
     salvar(); fecharModal(); render(); toast('Lançamento salvo');
   });
 }
@@ -1568,6 +1780,7 @@ function formProduto(id){
     e.preventDefault(); const fd = new FormData(e.target); const nid = id || uid();
     const novosTams = String(fd.get('tams') || '').split(',').map(limpaTam).filter(Boolean);
     const est = {}; (novosTams.length ? novosTams : ['Único']).forEach(t => { est[t] = fd.has(`est-${t}`) ? Number(fd.get(`est-${t}`)) || 0 : (p.estoque && p.estoque[t]) || 0; });
+    registrar(`${id ? 'Editou' : 'Cadastrou'} o produto ${fd.get('nome')}`);
     S.fin.produtos[nid] = {id:nid, nome:fd.get('nome'), categoria:fd.get('categoria'), custo:Number(fd.get('custo')), preco:Number(fd.get('preco')), estoqueMin:Number(fd.get('estoqueMin')) || 0, estoque:est};
     salvar(); fecharModal(); render(); toast('Produto salvo');
   });
@@ -1585,6 +1798,7 @@ function formEntrada(id){
     Object.keys(pr.estoque).forEach(t => { const q = Number(fd.get(`q-${t}`)) || 0; pr.estoque[t] = (Number(pr.estoque[t]) || 0) + q; un += q; });
     if (!un) return toast('Informe a quantidade de pelo menos um tamanho.');
     const cu = Number(fd.get('custo')) || 0; pr.custo = cu;
+    registrar(`Entrada de estoque: ${un} un. de ${pr.nome}`);
     if (fd.has('lancar') && cu){ const lid = uid(); S.fin.lancamentos[lid] = {id:lid, tipo:'custo', categoria:'Estoque (compra de produtos)', valor:+(cu * un).toFixed(2), data:fd.get('data'), descricao:`${un} un. de ${pr.nome}`}; }
     salvar(); fecharModal(); render(); toast(`${un} unidade(s) somadas ao estoque`);
   });
@@ -1608,9 +1822,123 @@ function formVenda(){
     e.preventDefault(); const fd = new FormData(e.target); const p = S.fin.produtos[fd.get('produto')], t = fd.get('tam'), q = Number(fd.get('qtd')) || 1;
     if ((Number(p.estoque[t]) || 0) < q) return toast(`Só há ${p.estoque[t] || 0} unidade(s) de ${t} em estoque.`);
     p.estoque[t] = Number(p.estoque[t]) - q; const id = uid();
+    registrar(`Venda: ${q} un. de ${p.nome} ${t}${fd.get('aluno') ? ` para ${fd.get('aluno')}` : ''}`);
     S.fin.vendas[id] = {id, produto:p.id, produtoNome:p.nome, tam:t, qtd:q, preco:Number(fd.get('preco')) || 0, custo:Number(p.custo) || 0, data:fd.get('data'), aluno:fd.get('aluno'), forma:fd.get('forma'), pago:fd.has('pago')};
     salvar(); fecharModal(); render(); toast('Venda registrada e estoque atualizado');
   });
+}
+
+/* ============ Pacote 1: blindagem ============ */
+// Histórico de alterações (somente acréscimo)
+function quem(){ return ONLINE ? (S.meta.nome || S.meta.email || 'Usuário') : 'Modo teste'; }
+function registrar(acao){
+  S.log ||= {};
+  const agora = new Date().toISOString(), por = quem();
+  const ult = Object.values(S.log).sort((a, b) => b.data.localeCompare(a.data))[0];
+  if (ult && ult.acao === acao && ult.por === por && (Date.parse(agora) - Date.parse(ult.data)) < 120000) return;
+  const id = uid(); S.log[id] = {id, data:agora, por, acao};
+}
+// Lixeira (30 dias)
+const TIPOS_LIX = {aluno:'Aluno', campeonato:'Campeonato', produto:'Produto'};
+function paraLixeira(tipo, id){
+  const origem = {aluno:S.alunos, campeonato:S.campeonatos, produto:S.fin.produtos}[tipo];
+  const obj = origem[id]; if (!obj) return;
+  S.lixeira ||= {};
+  S.lixeira[id] = {id, tipo, nome:obj.nome || 'Sem nome', data:new Date().toISOString(), por:quem(), dados:JSON.parse(JSON.stringify(obj))};
+  delete origem[id];
+  registrar(`${TIPOS_LIX[tipo]} enviado para a lixeira: ${obj.nome || ''}`);
+}
+function restaurarLixeira(id){
+  const it = S.lixeira[id]; if (!it) return;
+  const destino = {aluno:S.alunos, campeonato:S.campeonatos, produto:S.fin.produtos}[it.tipo];
+  destino[id] = it.dados; delete S.lixeira[id];
+  registrar(`${TIPOS_LIX[it.tipo]} restaurado da lixeira: ${it.nome}`);
+}
+function limparAntigos(){
+  const lim30 = new Date(Date.now() - 30 * 864e5).toISOString(), lim180 = new Date(Date.now() - 180 * 864e5).toISOString();
+  Object.values(S.lixeira || {}).forEach(x => { if (x.data < lim30) delete S.lixeira[x.id]; });
+  Object.values(S.log || {}).forEach(x => { if (x.data < lim180) delete S.log[x.id]; });
+}
+// Situação do aluno ao longo do tempo
+function statusEm(a, d){
+  if (a.dataMatricula && d < a.dataMatricula) return null;
+  const h = (a.historicoStatus || []).slice().sort((x, y) => x.data.localeCompare(y.data));
+  let st = h.length ? (h[0].anterior || 'ativo') : a.status;
+  h.forEach(x => { if (x.data <= d) st = x.status; });
+  return st;
+}
+function cobravel(a, m){
+  if (!a.plano) return false;
+  const mm = (a.dataMatricula || '').slice(0, 7);
+  if (mm && mm > m) return false;
+  const vencDia = `${m}-${pad(Math.min(Number(a.vencimento) || 10, diasNoMes(m)))}`, h = hoje();
+  const ref = vencDia < h ? vencDia : h;
+  if (mm === m) return statusEm(a, ref) === 'ativo' || statusEm(a, h < `${m}-${pad(diasNoMes(m))}` ? h : `${m}-${pad(diasNoMes(m))}`) === 'ativo';
+  return statusEm(a, ref) === 'ativo';
+}
+function debitosEmAberto(){
+  const ini = S.config.inicioFinanceiro || mesAtual(), fim = mesAtual(), por = {};
+  for (let m = ini; m <= fim; m = addMes(m, 1)){
+    mensalidadesDoMes(m).filter(x => x.st === 'atrasado').forEach(x => { (por[x.a.id] ||= {a:x.a, itens:[]}).itens.push({m, valor:x.valor, venc:x.venc}); });
+  }
+  return Object.values(por).map(g => ({...g, total:g.itens.reduce((s, i) => s + i.valor, 0)})).sort((a, b) => b.total - a.total);
+}
+function finAberto(){
+  const ds = debitosEmAberto(), tot = ds.reduce((s, d) => s + d.total, 0);
+  return `<div class="numeros" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+    <div class="num"><strong style="font-size:clamp(17px,4.6vw,24px);white-space:nowrap;color:var(--red)">${fmtR0(tot)}</strong><span>em atraso, somando todos os meses</span></div>
+    <div class="num"><strong style="font-size:clamp(17px,4.6vw,24px)">${ds.length}</strong><span>aluno(s) devendo</span></div></div>
+  <p class="muted small">Considera as mensalidades vencidas e não pagas desde ${nomeMes(S.config.inicioFinanceiro || mesAtual())}, início do controle financeiro no app (ajustável em Ajustes, Planos e custos). Inclui alunos que já saíram, se ficou débito de quando estavam ativos.</p>
+  <div class="list">${ds.length ? ds.map(d => {
+    const tel = d.a.telefone || d.a.telResp;
+    const msg = `Olá, ${d.a.nome.split(' ')[0]}! Tudo bem? Consta em aberto na SAFE: ${d.itens.map(i => `${nomeMes(i.m)} (${fmtR(i.valor)})`).join(', ')}. Total: ${fmtR(d.total)}.${S.config.pix ? ` Chave Pix: ${S.config.pix}.` : ''} Se já pagou, desconsidere e nos avise. Oss!`;
+    return `<div class="row" style="cursor:default;flex-wrap:wrap;align-items:flex-start"><a class="grow" href="#/aluno/${d.a.id}" style="text-decoration:none;min-width:200px"><span class="name" style="display:block">${esc(d.a.nome)}</span>
+      <span class="meta">${d.a.status !== 'ativo' ? `<span class="tag warn">${esc(d.a.status)}</span>` : ''}${d.itens.length} mês(es)</span></a>
+      <strong style="font-family:var(--cond);font-size:22px;color:var(--red)">${fmtR(d.total)}</strong>
+      <div style="width:100%;display:flex;gap:6px;flex-wrap:wrap">${d.itens.map(i => `<button class="btn small ghost" data-act="mens-receber" data-id="${d.a.id}" data-m="${i.m}">Receber ${mesCurto(i.m)}/${i.m.slice(2, 4)}: ${fmtR0(i.valor)}</button>`).join('')}${tel ? `<a class="btn small primary" href="${waLink(tel, msg)}" target="_blank" rel="noopener">Cobrar tudo</a>` : ''}</div></div>`;
+  }).join('') : '<div class="empty">Nenhuma mensalidade em atraso. Tatame limpo!</div>'}</div>`;
+}
+// Backup em arquivo
+function dadosBackup(){ return {config:S.config, alunos:S.alunos, presencas:S.presencas, campeonatos:S.campeonatos, fin:S.fin, geradoEm:new Date().toISOString()}; }
+function baixarBackup(){
+  try {
+    const blob = new Blob([JSON.stringify(dadosBackup())], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup-safe-${hoje()}.json`;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    localStorage.setItem('safe_ultimo_download', hoje()); registrar('Baixou backup em arquivo'); toast('Backup baixado. Guarde no computador ou pendrive.');
+  } catch(e){ toast('Não foi possível baixar aqui. Use "Copiar backup".'); }
+}
+const backupMensalPendente = () => { const u = localStorage.getItem('safe_ultimo_download'); return !u || diasEntre(u, hoje()) >= 30; };
+// Conexão
+let conectado = true, pendentes = 0, estavaOff = false;
+function atualizarConexao(){
+  let el = $('#conexao');
+  if (!el){ el = document.createElement('div'); el.id = 'conexao'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  if (!ONLINE || (conectado && !pendentes)){ el.style.display = 'none'; if (estavaOff && conectado){ estavaOff = false; toast('Conexão restabelecida. Tudo salvo.'); } return; }
+  if (!conectado) estavaOff = true;
+  el.style.display = 'block';
+  el.textContent = !conectado ? (pendentes ? `Sem internet: ${pendentes} alteração(ões) esperando para salvar. Não feche o app até a conexão voltar.` : 'Sem internet. Você está vendo os últimos dados carregados.') : `Salvando ${pendentes} alteração(ões)...`;
+  el.className = conectado ? 'con-salvando' : 'con-off';
+}
+window.addEventListener('beforeunload', e => { if (pendentes > 0){ e.preventDefault(); e.returnValue = ''; } });
+// Validações
+function cpfValido(c){
+  c = String(c || '').replace(/\D/g, ''); if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false;
+  const dv = n => { let s = 0; for (let i = 0; i < n; i++) s += Number(c[i]) * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+  return dv(9) === Number(c[9]) && dv(10) === Number(c[10]);
+}
+function painelSeguranca(){
+  const lx = Object.values(S.lixeira || {}).sort((a, b) => b.data.localeCompare(a.data));
+  const q = norm(ui.logBusca || '');
+  const lg = Object.values(S.log || {}).filter(x => !q || norm(x.acao + ' ' + x.por).includes(q)).sort((a, b) => b.data.localeCompare(a.data));
+  const dt = iso => { const d = new Date(iso); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  return `<div class="panel"><h3 style="margin-bottom:6px">Lixeira</h3><p class="muted small">Alunos, campeonatos e produtos excluídos ficam aqui por 30 dias e podem ser restaurados com todos os dados.</p>
+    <div class="list">${lx.length ? lx.map(x => `<div class="row" style="cursor:default;flex-wrap:wrap"><span class="grow" style="min-width:180px"><span class="name" style="display:block">${esc(x.nome)}</span><span class="meta"><span class="tag">${TIPOS_LIX[x.tipo]}</span> excluído em ${dt(x.data)} por ${esc(x.por)}</span></span>
+      <span style="display:flex;gap:6px"><button class="btn small primary" data-act="lix-rest" data-id="${x.id}">Restaurar</button><button class="btn small danger" data-act="lix-del" data-id="${x.id}">Excluir de vez</button></span></div>`).join('') : '<div class="empty">Lixeira vazia.</div>'}</div></div>
+  <div class="panel"><h3 style="margin-bottom:6px">Histórico de alterações</h3><p class="muted small">Registro de quem fez o quê e quando (últimos 180 dias). Os registros não podem ser editados.</p>
+    <input type="search" id="logBusca" placeholder="Buscar por nome, aluno ou ação" value="${esc(ui.logBusca || '')}" style="margin-bottom:10px">
+    <div class="list" style="max-height:420px;overflow:auto">${lg.length ? lg.slice(0, ui.logN || 100).map(x => `<div class="row" style="cursor:default"><span class="grow"><span style="display:block">${esc(x.acao)}</span><span class="meta">${dt(x.data)}, ${esc(x.por)}</span></span></div>`).join('') : '<div class="empty">Nenhum registro.</div>'}</div>
+    ${lg.length > (ui.logN || 100) ? `<button class="btn small ghost" style="margin-top:8px" data-act="log-mais">Ver mais</button>` : ''}</div>`;
 }
 
 /* ============ Versão online (Firebase) ============ */
@@ -1631,6 +1959,12 @@ function iniciarFirebase(){
   if (!window.firebase){ estadoAuth = 'semsdk'; render(); return; }
   firebase.initializeApp(FIREBASE_CONFIG);
   auth = firebase.auth(); db = firebase.database(); auth.languageCode = 'pt';
+  let tmCon = null;
+  db.ref('.info/connected').on('value', snap => {
+    clearTimeout(tmCon);
+    if (snap.val()){ conectado = true; atualizarConexao(); }
+    else tmCon = setTimeout(() => { conectado = false; atualizarConexao(); }, 3000);
+  });
   auth.onAuthStateChanged(u => {
     subsPerfil.forEach(f => f()); subsPerfil = []; pararDados(); usuario = u; papelAtivo = null;
     if (!u){ estadoAuth = 'login'; render(); return; }
@@ -1658,7 +1992,7 @@ async function criarPerfil(u){
 function pararDados(){ subsDados.forEach(f => f()); subsDados = []; pronto = false; R = {}; }
 function iniciarDados(){
   pararDados(); render();
-  const paths = ['config','alunos','presencas','campeonatos', ...(isAdmin() ? ['configFin','alunosFin','financeiro'] : [])];
+  const paths = ['config','alunos','presencas','campeonatos', ...(isAdmin() ? ['configFin','alunosFin','financeiro','lixeira','historico'] : [])];
   const carregado = {};
   paths.forEach(p => {
     const ref = db.ref(p);
@@ -1681,30 +2015,42 @@ function reconstruir(){
   if (R.configFin) Object.assign(S.config, JSON.parse(JSON.stringify(R.configFin)));
   S.alunos = alunos; S.presencas = JSON.parse(JSON.stringify(R.presencas || {})); S.campeonatos = JSON.parse(JSON.stringify(R.campeonatos || {}));
   S.fin = JSON.parse(JSON.stringify(R.financeiro || {}));
+  if (isAdmin()){ S.lixeira = JSON.parse(JSON.stringify(R.lixeira || {})); S.log = JSON.parse(JSON.stringify(R.historico || {})); }
   normalizar(); _idx = null;
   base = mapear(); let iniciar = false;
-  if (!R.config){ delete base.config; iniciar = true; }
-  if (isAdmin() && !R.configFin){ delete base.configFin; iniciar = true; }
+  const semPrefixo = pre => Object.keys(base).forEach(k => { if (k === pre || k.startsWith(pre + '/')) delete base[k]; });
+  if (!R.config){ semPrefixo('config'); iniciar = true; }
+  if (isAdmin() && (!R.configFin || R.configFin.inicioFinanceiro == null)){ semPrefixo('configFin'); iniciar = true; }
+  if (isAdmin()){ const lim = new Date(Date.now() - 180 * 864e5).toISOString(); if (Object.values(R.historico || {}).some(x => x.data < lim) || Object.values(R.lixeira || {}).some(x => x.data < new Date(Date.now() - 30 * 864e5).toISOString())){ Object.keys(R.historico || {}).forEach(id => { if (!S.log[id]) base['historico/' + id] = '"x"'; }); Object.keys(R.lixeira || {}).forEach(id => { if (!S.lixeira[id]) base['lixeira/' + id] = '"x"'; }); iniciar = true; } }
   const primeiro = !pronto; pronto = true;
   if (iniciar) salvarOnline();
   if (primeiro) render(); else agendarRender();
 }
+// Grava campo a campo: duas pessoas editando o mesmo registro não apagam o trabalho uma da outra
+function achatar(m, caminho, v, prof){
+  if (v === undefined || v === null) return;
+  if (prof <= 0 || typeof v !== 'object' || Array.isArray(v)){ m[caminho] = JSON.stringify(v); return; }
+  Object.keys(v).forEach(k => achatar(m, caminho + '/' + k, v[k], prof - 1));
+}
 function mapear(){
-  const m = {}, put = (p, v) => { m[p] = JSON.stringify(v); };
-  const {planos, custos, pix, msgCobranca, ...cfg} = S.config;
-  put('config', cfg);
+  const m = {};
+  const {planos, custos, pix, msgCobranca, inicioFinanceiro, ...cfg} = S.config;
+  achatar(m, 'config', cfg, 1);
   if (isAdmin()){
-    put('configFin', {planos, custos, pix, msgCobranca});
-    Object.entries(S.fin.mensalidades).forEach(([m, regs]) => Object.entries(regs || {}).forEach(([id, r]) => put(`financeiro/mensalidades/${m}/${id}`, r)));
-    ['lancamentos','vendas','produtos'].forEach(k => Object.entries(S.fin[k]).forEach(([id, v]) => put(`financeiro/${k}/${id}`, v)));
+    achatar(m, 'configFin', {planos, custos, pix, msgCobranca, inicioFinanceiro}, 1);
+    Object.entries(S.fin.mensalidades).forEach(([mes, regs]) => Object.entries(regs || {}).forEach(([id, r]) => achatar(m, `financeiro/mensalidades/${mes}/${id}`, r, 1)));
+    ['lancamentos','vendas'].forEach(k => Object.entries(S.fin[k]).forEach(([id, v]) => achatar(m, `financeiro/${k}/${id}`, v, 1)));
+    Object.entries(S.fin.produtos).forEach(([id, v]) => achatar(m, `financeiro/produtos/${id}`, v, 2));
+    Object.entries(S.lixeira || {}).forEach(([id, v]) => achatar(m, `lixeira/${id}`, v, 0));
   }
+  Object.entries(S.log || {}).forEach(([id, v]) => achatar(m, `historico/${id}`, v, 0));
   Object.values(S.alunos).forEach(a => {
     const f = {}, b = {};
     Object.entries(a).forEach(([k, v]) => { if (k !== 'id' && v !== undefined) (CAMPOS_FIN.includes(k) ? f : b)[k] = v; });
-    put('alunos/' + a.id, b); if (isAdmin()) put('alunosFin/' + a.id, f);
+    achatar(m, 'alunos/' + a.id, b, 1); if (isAdmin()) achatar(m, 'alunosFin/' + a.id, f, 1);
   });
-  Object.entries(S.presencas).forEach(([k, p]) => put('presencas/' + k, p));
-  Object.values(S.campeonatos).forEach(c => put('campeonatos/' + c.id, c));
+  Object.entries(S.presencas).forEach(([k, p]) => achatar(m, 'presencas/' + k, p, 2));
+  Object.values(S.campeonatos).forEach(c => achatar(m, 'campeonatos/' + c.id, c, 1));
   return m;
 }
 function salvarOnline(){
@@ -1714,13 +2060,20 @@ function salvarOnline(){
   Object.keys(base).forEach(k => { if (!(k in cur)) up[k] = null; });
   if (!Object.keys(up).length) return;
   base = cur;
-  db.ref().update(up).catch(e => toast(String(e && e.message || '').includes('ermission') ? 'Sem permissão para salvar essa alteração.' : 'Não foi possível salvar. Confira a internet e tente de novo.'));
+  pendentes++; atualizarConexao();
+  db.ref().update(up).then(() => { pendentes = Math.max(0, pendentes - 1); atualizarConexao(); }).catch(e => { pendentes = Math.max(0, pendentes - 1); atualizarConexao(); toast(String(e && e.message || '').includes('ermission') ? 'Sem permissão para salvar essa alteração. Se você é administrador, confira se as regras do Firebase foram atualizadas.' : 'Não foi possível salvar. Confira a internet e tente de novo.'); });
 }
+let tocando = false, renderAposToque = false;
+const fimToque = () => setTimeout(() => { tocando = false; if (renderAposToque){ renderAposToque = false; render(); } }, 0);
+document.addEventListener('pointerdown', () => { tocando = true; }, true);
+document.addEventListener('pointerup', fimToque, true);
+document.addEventListener('pointercancel', fimToque, true);
+function renderDepois(){ if (tocando) renderAposToque = true; else render(); }
 function agendarRender(){
   const a = document.activeElement;
   const digitando = a && a.closest && a.closest('#main') && ['INPUT','TEXTAREA','SELECT'].includes(a.tagName);
   if ($('#modal-root').innerHTML || digitando){ pendRender = true; return; }
-  render();
+  renderDepois();
 }
 document.addEventListener('focusout', () => { if (pendRender) setTimeout(() => { if (pendRender) agendarRender(); }, 50); });
 const pendentesEquipe = () => Object.values(equipe).filter(u => u.papel === 'pendente').length;
@@ -1737,7 +2090,8 @@ function painelOnline(){
   <div class="panel"><h3 style="margin-bottom:8px">Aparência neste aparelho</h3><div class="checks">${[['auto','Automático'],['light','Claro'],['dark','Escuro']].map(([v, t]) => `<label class="check"><input type="radio" name="tema" value="${v}" ${(S.meta.tema || 'auto') === v ? 'checked' : ''} data-act="tema">${t}</label>`).join('')}</div></div>
   ${isAdmin() ? `<div class="panel"><h3 style="margin-bottom:8px">Backup e dados</h3>
     <p class="muted small">Os dados ficam guardados online e sincronizados entre todos os aparelhos. Copiar um backup de vez em quando é uma segurança extra. "Restaurar backup" também serve para trazer os dados do modo teste.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" data-act="copiar-backup">Copiar backup</button><button class="btn ghost" data-act="importar">Restaurar backup</button><button class="btn danger" data-act="limpar">Apagar alunos, presenças e campeonatos</button></div></div>` : ''}`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="baixar-backup">Baixar backup (arquivo)</button><button class="btn ghost" data-act="copiar-backup">Copiar backup</button><button class="btn ghost" data-act="importar">Restaurar backup</button><button class="btn danger" data-act="limpar">Apagar alunos, presenças e campeonatos</button></div>
+    <p class="muted small" style="margin-top:8px">Uma vez por mês, baixe o arquivo e guarde no computador ou pendrive. Junto com o backup diário automático no Google Drive, isso completa a regra 3-2-1 de segurança.</p></div>${painelSeguranca()}` : ''}`;
 }
 function telaAuth(){
   const caixa = h => `<div style="max-width:400px;margin:8vh auto 0"><div class="brand" style="padding:0 0 22px"><b>SAFE</b><span>gestão</span></div>${h}</div>`;
@@ -1770,7 +2124,8 @@ document.addEventListener('submit', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target; if (!t.dataset || !t.dataset.papelUid) return;
-  db.ref('usuarios/' + t.dataset.papelUid + '/papel').set(t.value).then(() => toast('Acesso atualizado')).catch(() => toast('Não foi possível alterar o acesso.'));
+  const u = equipe[t.dataset.papelUid] || {};
+  db.ref('usuarios/' + t.dataset.papelUid + '/papel').set(t.value).then(() => { registrar(`Alterou o acesso de ${u.nome || u.email}: ${t.value}`); salvar(); toast('Acesso atualizado'); }).catch(() => toast('Não foi possível alterar o acesso.'));
 });
 
 /* ============ Modal ============ */
@@ -1839,6 +2194,7 @@ function carregarExemplo(){
   const c1 = uid(), c2 = uid() + 'b';
   S.campeonatos[c1] = {id:c1, nome:'Campeonato Carioca (exemplo)', data:addDias(h, 24), prazo:addDias(h, 5), local:'Rio de Janeiro', federacao:'FJJ-Rio', formato:'gi', valor:'150', link:'', obs:'', inscritos:insc([0, 1, 7, 11])};
   const mA = hoje().slice(0, 7);
+  S.config.inicioFinanceiro = addMes(mA, -3);
   [-3, -2, -1, 0].forEach(k => { const m = addMes(mA, k); S.fin.mensalidades[m] = {};
     Object.values(S.alunos).forEach((a, i) => { const v = valorMensal(a); if (!v) return; if (k === 0 && i % 3 === 0) return; if (k === -1 && i === 5) return;
       S.fin.mensalidades[m][a.id] = {pago:true, valor:v, valorPago:v, dataPag:`${m}-${pad(Math.min(28, Number(a.vencimento) || 10))}`, forma:FORMAS[i % 3], obs:''}; }); });
@@ -1863,16 +2219,20 @@ document.addEventListener('click', e => {
     'novo-aluno': () => formAluno(),
     'editar-aluno': () => formAluno(id),
     'graduar': () => formGraduacao(id),
-    'excluir-aluno': async () => { if (await confirmar(`Excluir ${S.alunos[id].nome}? O histórico de presenças dele também sai dos relatórios.`)){ delete S.alunos[id]; Object.values(S.presencas).forEach(p => delete p.alunos[id]); salvar(); location.hash = '#/alunos'; toast('Aluno excluído'); } },
+    'excluir-aluno': async () => { if (await confirmar(`Excluir ${S.alunos[id].nome}? Ele vai para a lixeira e pode ser restaurado em até 30 dias, com todos os dados.`, 'Excluir')){ paraLixeira('aluno', id); salvar(); location.hash = '#/alunos'; toast('Aluno enviado para a lixeira'); } },
+    'lix-rest': () => { restaurarLixeira(id); salvar(); render(); toast('Restaurado'); },
+    'lix-del': async () => { const it = S.lixeira[id]; if (it && await confirmar(`Excluir ${it.nome} de vez? Essa ação não pode ser desfeita.`, 'Excluir de vez')){ registrar(`Excluiu de vez da lixeira: ${it.nome}`); delete S.lixeira[id]; salvar(); render(); } },
+    'log-mais': () => { ui.logN = (ui.logN || 100) + 200; render(); },
+    'baixar-backup': () => baixarBackup(),
     'del-hist': async () => { const a = S.alunos[id]; if (!(await confirmar('Apagar este registro do histórico? A faixa atual não muda.'))) return; a.historico = a.historico.filter(x => x.id !== el.dataset.hid); salvar(); render(); },
     'toggle-pres': () => togglePres(id, el.dataset.key, el.dataset.data, el.dataset.t),
-    'limpar-chamada': async () => { if (await confirmar('Desmarcar todos desta aula?')){ delete S.presencas[`${el.dataset.data}_${el.dataset.t}`]; salvar(); listaChamada(el.dataset.data, el.dataset.t); } },
+    'limpar-chamada': async () => { if (await confirmar('Desmarcar todos desta aula?')){ registrar(`Desmarcou todos da chamada de ${fmtBR(el.dataset.data)}`); delete S.presencas[`${el.dataset.data}_${el.dataset.t}`]; salvar(); listaChamada(el.dataset.data, el.dataset.t); } },
     'add-outro': () => {
       const t = turma(el.dataset.t);
       const outros = alunosAtivos().filter(a => !(a.mods || []).includes(t.mod)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
       abrirModal(`<h2>Adicionar aluno de outra turma</h2><div class="list" style="max-height:60vh;overflow:auto">${outros.length ? outros.map(a => `<button class="row" data-act="add-outro-ok" data-id="${a.id}" data-data="${el.dataset.data}" data-t="${el.dataset.t}"><span class="avatar" aria-hidden="true">${iniciais(a.nome)}</span><span class="grow name">${esc(a.nome)}</span></button>`).join('') : '<div class="empty">Todos os alunos ativos já aparecem nesta turma.</div>'}</div><div class="actions"><button class="btn ghost" data-act="fechar">Fechar</button></div>`);
     },
-    'add-outro-ok': () => { const k = `${el.dataset.data}_${el.dataset.t}`; const p = S.presencas[k] ||= {data:el.dataset.data, turma:el.dataset.t, alunos:{}}; p.alunos[id] = true; salvar(); fecharModal(); listaChamada(el.dataset.data, el.dataset.t); },
+    'add-outro-ok': () => { const k = `${el.dataset.data}_${el.dataset.t}`; const p = S.presencas[k] ||= {data:el.dataset.data, turma:el.dataset.t, alunos:{}}; p.prof ||= ($('#profAula') || {}).value || profPadrao(); p.alunos[id] = true; salvar(); fecharModal(); listaChamada(el.dataset.data, el.dataset.t); },
     'presTab': () => { ui.presTab = el.dataset.v; render(); },
     'compTab': () => { ui.compTab = el.dataset.v; ui.compEdit = false; render(); },
     'compEdit': () => { ui.compEdit = !ui.compEdit; render(); if (!ui.compEdit) toast('Alterações salvas'); },
@@ -1885,24 +2245,28 @@ document.addEventListener('click', e => {
     'edit-camp': () => formCampeonato(id),
     'camp-add': () => window._camp.add(),
     'camp-rem': () => window._camp.rem(Number(el.dataset.k)),
-    'camp-del': async () => { if (await confirmar('Excluir este campeonato e seus resultados?', 'Excluir')){ delete S.campeonatos[id]; salvar(); render(); toast('Campeonato excluído'); } },
+    'camp-del': async () => { if (await confirmar('Excluir este campeonato? Ele vai para a lixeira por 30 dias.', 'Excluir')){ paraLixeira('campeonato', id); salvar(); render(); toast('Campeonato enviado para a lixeira'); } },
     'comp-add': () => { const arr = comp()[el.dataset.path]; arr.push(el.dataset.path === 'docs' ? {id:uid(), titulo:'', data:'', link:''} : {}); salvar(); render(); },
     'comp-del': () => { comp()[el.dataset.path].splice(Number(el.dataset.i), 1); salvar(); render(); },
     'add-golpe': () => { const g = comp().golpes; g.push({id:uid(), n:g.length + 1, nome:'Nova técnica', desc:'', video:'', proib:[false,false,false,false,false,false]}); salvar(); render(); },
     'reset-comp': async () => { if (await confirmar('Voltar todas as tabelas e regras de competição ao padrão IBJJF? Seus campeonatos e atletas não são afetados.')){ S.config.competicao = compPadrao(); salvar(); render(); } },
     'ver-equipe': () => { ui.maisTab = 'dados'; },
+    'rosto': () => formRosto(id),
+    'rosto-ficha': () => cadastrarRosto(id, S.alunos[id].foto),
+    'rosto-apagar': async () => { if (await confirmar('Apagar os dados faciais deste aluno? Ele deixa de ser reconhecido na chamada por foto.', 'Apagar')){ delete S.alunos[id].rosto; salvar(); render(); toast('Dados faciais apagados'); } },
+    'fr-ok': () => confirmarFotoChamada(),
     'finTab': () => { ui.finTab = el.dataset.v; render(); },
     'finMesNav': () => { ui.finMes = addMes(ui.finMes, Number(el.dataset.n)); render(); },
-    'mens-receber': () => formReceber(id),
-    'mens-desfazer': async () => { if (await confirmar('Desfazer este recebimento? A mensalidade volta a ficar pendente.', 'Desfazer')){ const regs = S.fin.mensalidades[ui.finMes] || {}; delete regs[id]; salvar(); render(); } },
+    'mens-receber': () => formReceber(id, el.dataset.m),
+    'mens-desfazer': async () => { if (await confirmar('Desfazer este recebimento? A mensalidade volta a ficar pendente.', 'Desfazer')){ const regs = S.fin.mensalidades[ui.finMes] || {}; delete regs[id]; registrar(`Desfez recebimento de ${S.alunos[id]?.nome || ''} (${nomeMes(ui.finMes)})`); salvar(); render(); } },
     'lanc-novo': () => formLancamento(el.dataset.tipo),
-    'lanc-del': async () => { if (await confirmar('Apagar este lançamento?', 'Apagar')){ delete S.fin.lancamentos[id]; salvar(); render(); } },
+    'lanc-del': async () => { if (await confirmar('Apagar este lançamento?', 'Apagar')){ registrar(`Apagou lançamento: ${S.fin.lancamentos[id].categoria} ${fmtR(S.fin.lancamentos[id].valor)}`); delete S.fin.lancamentos[id]; salvar(); render(); } },
     'prod-edit': () => formProduto(id),
     'prod-entrada': () => formEntrada(id),
-    'prod-del': async () => { if (await confirmar('Excluir este produto? As vendas já registradas continuam no histórico.', 'Excluir')){ delete S.fin.produtos[id]; salvar(); render(); } },
+    'prod-del': async () => { if (await confirmar('Excluir este produto? Ele vai para a lixeira por 30 dias. As vendas já registradas continuam no histórico.', 'Excluir')){ paraLixeira('produto', id); salvar(); render(); toast('Produto enviado para a lixeira'); } },
     'venda-nova': () => formVenda(),
-    'venda-pagar': () => { S.fin.vendas[id].pago = true; salvar(); render(); toast('Pagamento da venda registrado'); },
-    'venda-del': async () => { if (await confirmar('Apagar esta venda? As unidades voltam para o estoque.', 'Apagar')){ const v = S.fin.vendas[id], p = S.fin.produtos[v.produto]; if (p) p.estoque[v.tam] = (Number(p.estoque[v.tam]) || 0) + v.qtd; delete S.fin.vendas[id]; salvar(); render(); } },
+    'venda-pagar': () => { S.fin.vendas[id].pago = true; registrar(`Recebeu pagamento da venda de ${S.fin.vendas[id].produtoNome}`); salvar(); render(); toast('Pagamento da venda registrado'); },
+    'venda-del': async () => { if (await confirmar('Apagar esta venda? As unidades voltam para o estoque.', 'Apagar')){ const v = S.fin.vendas[id], p = S.fin.produtos[v.produto]; if (p) p.estoque[v.tam] = (Number(p.estoque[v.tam]) || 0) + v.qtd; registrar(`Apagou venda de ${v.produtoNome} ${v.tam}`); delete S.fin.vendas[id]; salvar(); render(); } },
     'sair': () => { auth.signOut(); },
     'ir-cadastro': () => { estadoAuth = 'cadastro'; render(); },
     'ir-login': () => { estadoAuth = 'login'; render(); },
@@ -1942,18 +2306,19 @@ document.addEventListener('click', e => {
     'del-mod': async () => {
       const uso = Object.values(S.alunos).filter(a => (a.mods || []).includes(id)).length;
       if (!(await confirmar(uso ? `${uso} aluno(s) estão nesta modalidade. Remover mesmo assim? Os horários dela também saem da grade.` : 'Remover esta modalidade e seus horários?'))) return;
+      registrar(`Removeu a modalidade ${mod(id)?.nome || ''}`);
       S.config.modalidades = S.config.modalidades.filter(m => m.id !== id);
       S.config.turmas = S.config.turmas.filter(t => t.mod !== id); salvar(); render();
     },
     'add-plano': () => { S.config.planos.push({id:uid(), nome:'Novo plano', valor:0, meses:1, mods:[]}); salvar(); render(); },
-    'del-plano': async () => { if (await confirmar('Remover este plano?')){ S.config.planos.splice(Number(el.dataset.i), 1); salvar(); render(); } },
+    'del-plano': async () => { if (await confirmar('Remover este plano?')){ registrar(`Removeu o plano ${S.config.planos[Number(el.dataset.i)]?.nome || ''}`); S.config.planos.splice(Number(el.dataset.i), 1); salvar(); render(); } },
     'add-custo': () => { S.config.custos.fixos.push({id:uid(), nome:'Novo custo', valor:0}); salvar(); render(); },
     'del-custo': () => { S.config.custos.fixos.splice(Number(el.dataset.i), 1); salvar(); render(); },
-    'reset-faixas': async () => { if (await confirmar('Voltar faixas para o padrão IBJJF?')){ S.config.faixas = faixasPadrao(); salvar(); render(); } },
+    'reset-faixas': async () => { if (await confirmar('Voltar faixas para o padrão IBJJF?')){ registrar('Restaurou faixas ao padrão IBJJF'); S.config.faixas = faixasPadrao(); salvar(); render(); } },
     'exemplo': () => { carregarExemplo(); toast('Exemplos carregados'); location.hash = '#/inicio'; render(); },
-    'limpar': async () => { if (await confirmar('Apagar TODOS os alunos, presenças e ajustes deste navegador? Essa ação não pode ser desfeita.')){ if (ONLINE){ S.alunos = {}; S.presencas = {}; S.campeonatos = {}; salvar(); } else { localStorage.removeItem(KEY); carregar(); salvar(); } render(); toast('Dados apagados'); } },
+    'limpar': async () => { if (await confirmar('Apagar TODOS os alunos, presenças e ajustes deste navegador? Essa ação não pode ser desfeita.')){ registrar('Apagou todos os alunos, presenças e campeonatos'); if (ONLINE){ S.alunos = {}; S.presencas = {}; S.campeonatos = {}; salvar(); } else { localStorage.removeItem(KEY); carregar(); salvar(); } render(); toast('Dados apagados'); } },
     'copiar-backup': () => {
-      const txt = JSON.stringify(S);
+      const txt = JSON.stringify(dadosBackup());
       const ok = () => toast('Backup copiado. Cole num e-mail ou nota para guardar.');
       if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok).catch(() => mostrarBackup(txt)); else mostrarBackup(txt);
     },
@@ -1961,11 +2326,12 @@ document.addEventListener('click', e => {
       abrirModal(`<h2>Restaurar backup</h2><p class="muted small">Cole o texto do backup. Isso substitui os dados atuais deste navegador.</p><textarea id="txtImp" style="min-height:200px"></textarea><div class="actions"><button class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" data-act="importar-ok">Restaurar</button></div>`);
     },
     'importar-ok': () => {
-      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, fin:o.fin || {}, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
+      try { const o = JSON.parse($('#txtImp').value); if (!o.config || !o.alunos) throw 0; const meta = S.meta, logAnt = S.log, lixAnt = S.lixeira; S = {config:o.config, alunos:o.alunos, presencas:o.presencas || {}, campeonatos:o.campeonatos || {}, fin:o.fin || {}, log:logAnt, lixeira:lixAnt, meta: ONLINE ? meta : (o.meta || meta)}; normalizar(); registrar('Restaurou um backup'); salvar(); fecharModal(); render(); toast('Backup restaurado'); }
       catch(err){ toast('Texto de backup inválido. Copie o backup completo e tente de novo.'); }
     }
   };
-  if (A[act]) A[act]();
+  const LOG_ACOES = {'add-turma':'Adicionou horário na grade','del-turma':'Removeu horário da grade','add-mod':'Adicionou modalidade','add-plano':'Adicionou plano','add-custo':'Adicionou custo fixo','del-custo':'Removeu custo fixo','comp-add':'Alterou regras de competição','comp-del':'Alterou regras de competição','add-golpe':'Alterou tabela de golpes','add-atleta-ok':'Adicionou atleta à equipe'};
+  if (A[act]){ if (LOG_ACOES[act]) registrar(LOG_ACOES[act] + (act === 'add-atleta-ok' ? `: ${S.alunos[id]?.nome || ''}` : '')); A[act](); }
 });
 function mostrarBackup(txt){
   abrirModal(`<h2>Backup</h2><p class="muted small">Selecione todo o texto abaixo e copie.</p><textarea style="min-height:220px" readonly>${esc(txt)}</textarea><div class="actions"><button class="btn primary" data-act="fechar">Fechar</button></div>`);
@@ -1980,28 +2346,35 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'fMod'){ ui.fMod = t.value; listaAlunos(); }
   else if (t.id === 'fStatus'){ ui.fStatus = t.value; listaAlunos(); }
-  else if (t.id === 'presData'){ ui.presData = t.value || hoje(); render(); }
-  else if (t.id === 'rankPer'){ ui.rankPer = t.value; render(); }
-  else if (t.id === 'rankMod'){ ui.rankMod = t.value; render(); }
-  else if (t.id === 'gradFiltro'){ ui.gradFiltro = t.value; render(); }
-  else if (t.id === 'finMes'){ ui.finMes = t.value || hoje().slice(0, 7); render(); }
-  else if (t.id === 'finFiltro'){ ui.finFiltro = t.value; render(); }
-  else if (t.id === 'finMod'){ ui.finMod = t.value; render(); }
-  else if (t.id === 'finSt'){ ui.finSt = t.value; render(); }
-  else if (['gIdade','gFaixa','gFormato','gDiv'].includes(t.id)){ ui.golpe = {idade:$('#gIdade').value, faixa:$('#gFaixa').value, formato:$('#gFormato').value, divisao:$('#gDiv') ? $('#gDiv').value : 'adulto'}; render(); }
+  else if (t.id === 'presData'){ ui.presData = t.value || hoje(); renderDepois(); }
+  else if (t.id === 'rankPer'){ ui.rankPer = t.value; renderDepois(); }
+  else if (t.id === 'rankMod'){ ui.rankMod = t.value; renderDepois(); }
+  else if (t.id === 'gradFiltro'){ ui.gradFiltro = t.value; renderDepois(); }
+  else if (t.id === 'profMes'){ ui.profMes = t.value || hoje().slice(0, 7); renderDepois(); }
+  else if (t.id === 'profAula'){ const [, d, tid] = rota(); const v = t.value.trim(); S.meta.ultimoProf = v || S.meta.ultimoProf; const k = `${d}_${tid}`; if (S.presencas[k]){ if (v) S.presencas[k].prof = v; else delete S.presencas[k].prof; } if (!ONLINE) salvar(); else salvar(); }
+  else if (t.id === 'fotoTurma'){ const f = t.files[0]; t.value = ''; const [, d, tid] = rota(); if (f) chamadaPorFoto(d, tid, f); }
+  else if (t.id === 'finMes'){ ui.finMes = t.value || hoje().slice(0, 7); renderDepois(); }
+  else if (t.id === 'finFiltro'){ ui.finFiltro = t.value; renderDepois(); }
+  else if (t.id === 'finMod'){ ui.finMod = t.value; renderDepois(); }
+  else if (t.id === 'finSt'){ ui.finSt = t.value; renderDepois(); }
+  else if (['gIdade','gFaixa','gFormato','gDiv'].includes(t.id)){ ui.golpe = {idade:$('#gIdade').value, faixa:$('#gFaixa').value, formato:$('#gFormato').value, divisao:$('#gDiv') ? $('#gDiv').value : 'adulto'}; renderDepois(); }
   else if (t.dataset.golpe !== undefined){ comp().golpes[Number(t.dataset.golpe)].proib[Number(t.dataset.col)] = t.checked; salvar(); }
-  else if (t.dataset.act === 'papel'){ S.meta.papel = t.value; salvar(); render(); }
+  else if (t.dataset.act === 'papel'){ S.meta.papel = t.value; salvar(); renderDepois(); }
   else if (t.dataset.act === 'tema'){ S.meta.tema = t.value; aplicarTema(); if (ONLINE) localStorage.setItem('safe_tema', t.value); else salvar(); }
   else if (t.dataset.bind){
     let v = t.value;
     if (t.hasAttribute('data-num')) v = v === '' ? null : Number(v);
-    setPath(S.config, t.dataset.bind, v); salvar();
-    if (t.dataset.bind.startsWith('modalidades') || t.dataset.bind.startsWith('faixas')) render();
+    setPath(S.config, t.dataset.bind, v);
+    const NOMES_AJ = {modalidades:'modalidades', planos:'planos', custos:'custos fixos', faixas:'requisitos de faixa', competicao:'regras de competição', pix:'chave Pix', msgCobranca:'mensagem de cobrança', inicioFinanceiro:'início do controle financeiro'};
+    registrar(`Alterou ajustes: ${NOMES_AJ[t.dataset.bind.split('.')[0]] || t.dataset.bind.split('.')[0]}`); salvar();
+    if (t.dataset.bind.startsWith('modalidades') || t.dataset.bind.startsWith('faixas')) renderDepois();
   }
   else if (t.dataset.bindTurma){
-    const tu = turma(t.dataset.bindTurma); tu[t.dataset.campo] = t.dataset.campo === 'dia' ? Number(t.value) : t.value; salvar(); render();
+    const tu = turma(t.dataset.bindTurma); tu[t.dataset.campo] = t.dataset.campo === 'dia' ? Number(t.value) : t.value; registrar('Alterou a grade de horários'); salvar(); renderDepois();
   }
-  else if (t.dataset.modFaixa !== undefined){ S.config.modalidades[Number(t.dataset.modFaixa)].faixa = t.checked; salvar(); }
+  else if (t.dataset.modFaixa !== undefined){ S.config.modalidades[Number(t.dataset.modFaixa)].faixa = t.checked; registrar('Alterou ajustes: modalidades'); salvar(); }
+  else if (t.id === 'logBusca'){ ui.logBusca = t.value; ui.logN = 100; renderDepois(); }
+  else if (t.hasAttribute('data-facial')){ S.config.facial = t.checked; salvar(); }
   else if (t.hasAttribute('data-exigir-graus')){ S.config.exigirGraus = t.checked; salvar(); }
   else if (t.dataset.planoMod !== undefined){
     const p = S.config.planos[Number(t.dataset.planoMod)];
