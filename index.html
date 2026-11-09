@@ -414,6 +414,10 @@ function normalizar(){
   S.pedag ||= {}; ['boletins','notas','tecnicas','cerimonias','professores','comunicados'].forEach(k => { S.pedag[k] ||= {}; });
   Object.values(S.pedag.comunicados).forEach(c => { c.enviados ||= {}; });
   Object.values(S.pedag.cerimonias).forEach(c => { c.graduados ||= {}; });
+  S.config.remuneracao ??= {};
+  ['semanas','extras'].forEach(k => { S.pedag[k] ||= {}; });
+  { const mtPlano = S.config.planos.find(p => p.mods.length === 1 && p.mods[0] === 'mt');
+    S.config.planos.forEach(p => { if (p.rateio === undefined && mtPlano && p.mods.includes('mt') && p.mods.length > 1){ const outro = p.mods.find(m => m !== 'mt'); p.rateio = {mt:Number(mtPlano.valor) || 0, [outro]:Math.max(0, (Number(p.valor) || 0) - (Number(mtPlano.valor) || 0))}; } if (p.mods.length > 1) p.rateio ||= {}; }); }
   S.config.criterioGrau ??= {kids:{meses:3, treinos:20}, branca:{meses:3, treinos:30}, adulto:{meses:6, treinos:40}};
   S.config.boletimEntrega ??= '2026-09-30';
   Object.values(S.alunos).forEach(a => { if (!a.canal){ const mm = String(a.obs || '').match(/Conheceu a SAFE por: ([^.]+)/); if (mm) a.canal = canalDe(mm[1]); } });
@@ -484,10 +488,10 @@ function render(){
   if (ONLINE && estadoAuth !== 'ok'){ $('.rail').style.display = 'none'; $('#main').innerHTML = telaAuth(); return; }
   $('.rail').style.display = '';
   const [v, ...args] = rota();
-  const sec = {aluno:'alunos', chamada:'presenca', cerimonia:'graduacoes'}[v] || v;
+  const sec = {aluno:'alunos', chamada:'presenca', cerimonia:'graduacoes', remuneracao:'inicio'}[v] || v;
   $('#nav').innerHTML = NAV.filter(([id]) => id !== 'financeiro' || isAdmin()).map(([id, nome, curto]) => `<a href="#/${id}" class="${sec === id ? 'on' : ''}" ${sec === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg><span class="lg">${nome}</span><span class="sm" aria-hidden="true">${curto || nome}</span></a>`).join('');
   $('#papel').textContent = (ONLINE && S.meta.nome ? S.meta.nome + ', ' : '') + (isAdmin() ? 'administrador' : 'professor');
-  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, cerimonia:viewCerimonia, competicao:viewCompeticao, crescimento:viewCrescimento, financeiro:viewFinanceiro, mais:viewMais};
+  const views = {inicio:viewInicio, alunos:viewAlunos, aluno:viewAluno, presenca:viewPresenca, chamada:viewChamada, graduacoes:viewGraduacoes, cerimonia:viewCerimonia, remuneracao:viewMinhaRemuneracao, competicao:viewCompeticao, crescimento:viewCrescimento, financeiro:viewFinanceiro, mais:viewMais};
   try { $('#main').innerHTML = (views[v] || viewInicio)(...args); }
   catch(err){ console.error(err); $('#main').innerHTML = `<div class="notice">Esta tela não abriu por um erro inesperado. Volte e tente de novo. Se continuar, envie esta mensagem ao suporte: ${esc(err && err.message)}</div>`; return; }
   const after = {alunos:listaAlunos, chamada:() => listaChamada(args[0], args[1]), competicao:simAtualiza}[v];
@@ -519,6 +523,7 @@ function viewInicio(){
     }).join('') : `<div class="empty">Sem aulas na grade de hoje.</div>`}
   </div>
   ${painelHoje()}
+  ${cardMinhaRem()}
   <div class="numeros">
     <a class="num" href="#/alunos"><strong>${ativos.length}</strong><span>alunos ativos</span></a>
     <a class="num" href="#/graduacoes" data-act="grad-aptos"><strong>${aptos}</strong><span>aptos a trocar de faixa</span></a>
@@ -833,7 +838,7 @@ function formGraduacao(id){
 
 /* ============ Presença ============ */
 function viewPresenca(){
-  const tabs = [['chamada','Chamada'],['ranking','Ranking'],['sumidos','Alunos sumidos'],['professores','Professores']];
+  const tabs = [['chamada','Chamada'],['semana','Posições da semana'],['ranking','Ranking'],['sumidos','Alunos sumidos'],['professores','Professores']];
   let corpo = '';
   if (ui.presTab === 'chamada'){
     const dow = parseD(ui.presData).getDay();
@@ -847,6 +852,8 @@ function viewPresenca(){
     }).join('') : `<div class="empty">Não há aulas na grade de ${DIAS[dow].toLowerCase()}. Ajuste a grade em Ajustes.</div>`}</div>`;
   } else if (ui.presTab === 'professores'){
     corpo = viewProfessores();
+  } else if (ui.presTab === 'semana'){
+    corpo = viewSemana();
   } else if (ui.presTab === 'ranking'){
     corpo = viewRanking();
   } else {
@@ -991,12 +998,13 @@ function viewMais(){
       <label class="check"><input type="checkbox" data-facial ${S.config.facial ? 'checked' : ''}>Chamada por reconhecimento facial</label>
       <p class="muted small">Desligado. Para usar, é preciso ter a autorização de reconhecimento facial no formulário de cadastro (LGPD). Ao desligar, os botões somem, mas nada é apagado.</p></div>`;
   } else if (ui.maisTab === 'planos'){
-    c = `<h3 style="margin-bottom:8px">Planos</h3><p class="muted small">Valor mensal cobrado. Semestral e anual: informe o valor por mês.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Nome</th><th>R$/mês</th><th>Duração</th><th>Modalidades cobertas</th><th></th></tr></thead><tbody>
+    c = `<h3 style="margin-bottom:8px">Planos</h3><p class="muted small">Valor mensal cobrado. Semestral e anual: informe o valor por mês. Em planos com mais de uma modalidade, a divisão diz quanto do valor pertence a cada uma (usada na remuneração de professores). Exemplo: combo de R$ 280 = Muay Thai 180 e Jiu-Jitsu 100. Se ficar em branco, o valor todo vai para a primeira modalidade.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Nome</th><th>R$/mês</th><th>Duração</th><th>Modalidades cobertas</th><th>Divisão por modalidade (R$)</th><th></th></tr></thead><tbody>
     ${S.config.planos.map((p, i) => `<tr><td><input type="text" value="${esc(p.nome)}" data-bind="planos.${i}.nome" aria-label="Nome"></td>
       <td style="width:100px"><input type="number" value="${p.valor}" data-bind="planos.${i}.valor" data-num aria-label="Valor"></td>
       <td style="width:130px"><select data-bind="planos.${i}.meses" data-num aria-label="Duração">${[[1,'Mensal'],[3,'Trimestral'],[6,'Semestral'],[12,'Anual']].map(([v, t]) => `<option value="${v}" ${p.meses == v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
       <td><div class="checks">${S.config.modalidades.map(m => `<label class="check" style="padding:4px 8px;font-size:14px"><input type="checkbox" data-plano-mod="${i}" value="${m.id}" ${p.mods.includes(m.id) ? 'checked' : ''}>${esc(m.nome)}</label>`).join('')}</div></td>
+      <td>${p.mods.length > 1 ? `<div style="display:flex;flex-direction:column;gap:4px;min-width:150px">${p.mods.map(mid => `<label class="small" style="display:flex;gap:6px;align-items:center">${esc(mod(mid)?.nome || mid)}<input type="number" step="0.01" value="${(p.rateio || {})[mid] ?? ''}" data-bind="planos.${i}.rateio.${mid}" data-num placeholder="—" style="max-width:90px;min-height:32px"></label>`).join('')}</div>` : '<span class="muted small">—</span>'}</td>
       <td><button class="btn small danger" data-act="del-plano" data-i="${i}">Remover</button></td></tr>`).join('')}
     </tbody></table></div><button class="btn ghost" style="margin-top:12px" data-act="add-plano">Adicionar plano</button>
     <h3 style="margin:26px 0 8px">Custos fixos</h3>
@@ -1648,10 +1656,11 @@ function resumoMes(m){
   const variaveis = lanc.filter(l => l.tipo === 'custo');
   const cond = mensPagas * (Number(S.config.custos.condominioPct) || 0) / 100;
   const fixos = S.config.custos.fixos.map(f => ({nome:f.nome, valor:Number(f.valor) || 0}));
-  const custos = cond + fixos.reduce((s, f) => s + f.valor, 0) + variaveis.reduce((s, l) => s + Number(l.valor || 0), 0);
+  const profs = totalRemuneracao(m);
+  const custos = cond + fixos.reduce((s, f) => s + f.valor, 0) + variaveis.reduce((s, l) => s + Number(l.valor || 0), 0) + profs;
   const receita = mensPagas + vendasPagas + outras;
   const pagantes = ms.filter(x => x.st === 'pago' && x.valor > 0).length;
-  return {ms, mensPagas, aReceber, atrasado, previsto, vendasPagas, lucroVendas, outras, variaveis, cond, fixos, custos, receita, liquido:receita - custos, pagantes, ticket:pagantes ? mensPagas / pagantes : 0};
+  return {ms, mensPagas, aReceber, atrasado, previsto, vendasPagas, lucroVendas, outras, variaveis, cond, fixos, profs, custos, receita, liquido:receita - custos, pagantes, ticket:pagantes ? mensPagas / pagantes : 0};
 }
 function primeiroMesComDados(){
   const ds = [...Object.keys(S.fin.mensalidades), ...Object.values(S.fin.vendas).map(v => (v.data || '').slice(0, 7)), ...Object.values(S.fin.lancamentos).map(l => (l.data || '').slice(0, 7))].filter(Boolean).sort();
@@ -1679,11 +1688,11 @@ function barrasH(itens, fmt = fmtR){
 }
 function viewFinanceiro(){
   if (!isAdmin()) return `<div class="empty">O financeiro é visível apenas para administradores.</div>`;
-  const tabs = [['resumo','Resumo'],['aberto','Em atraso'],['mensalidades','Mensalidades'],['lancamentos','Receitas e custos'],['produtos','Produtos e vendas'],['relatorio','Relatório do mês']];
+  const tabs = [['resumo','Resumo'],['aberto','Em atraso'],['mensalidades','Mensalidades'],['lancamentos','Receitas e custos'],['produtos','Produtos e vendas'],['professores','Professores'],['relatorio','Relatório do mês']];
   const m = ui.finMes;
   const seletor = `<div class="filters" style="align-items:flex-end"><div class="field" style="max-width:220px;margin:0"><label for="finMes">Mês</label><input type="month" id="finMes" value="${m}"></div>
     <span style="display:flex;gap:6px;flex:0"><button class="btn small ghost" data-act="finMesNav" data-n="-1" aria-label="Mês anterior">‹</button><button class="btn small ghost" data-act="finMesNav" data-n="1" aria-label="Próximo mês">›</button></span></div>`;
-  const corpo = {resumo:finResumo, aberto:finAberto, mensalidades:finMensalidades, lancamentos:finLancamentos, produtos:finProdutos, relatorio:finRelatorio}[ui.finTab](m);
+  const corpo = {resumo:finResumo, aberto:finAberto, mensalidades:finMensalidades, lancamentos:finLancamentos, produtos:finProdutos, professores:finProfessores, relatorio:finRelatorio}[ui.finTab](m);
   return `<div class="head"><h1>Financeiro</h1></div>
   <div class="tabs" role="tablist">${tabs.map(([id, t]) => `<button role="tab" aria-selected="${ui.finTab === id}" class="${ui.finTab === id ? 'on' : ''}" data-act="finTab" data-v="${id}">${t}</button>`).join('')}</div>${ui.finTab === 'aberto' ? '' : seletor}${corpo}`;
 }
@@ -1718,7 +1727,7 @@ function finResumo(m){
   <div class="grid2" style="gap:0 16px;align-items:start">
     <div class="panel"><h3 style="margin-bottom:10px">De onde veio o dinheiro</h3>${barrasH([{nome:'Mensalidades', valor:r.mensPagas},{nome:'Venda de produtos', valor:r.vendasPagas},{nome:'Outras receitas', valor:r.outras}])}
       <p class="muted small">Lucro bruto das vendas no mês: ${fmtR(r.lucroVendas)}.</p></div>
-    <div class="panel"><h3 style="margin-bottom:10px">Para onde foi</h3>${barrasH([{nome:`Condomínio (${S.config.custos.condominioPct}% das mensalidades)`, valor:r.cond}, ...r.fixos, ...Object.entries(r.variaveis.reduce((o, l) => { o[l.categoria || 'Outros'] = (o[l.categoria || 'Outros'] || 0) + Number(l.valor || 0); return o; }, {})).map(([nome, valor]) => ({nome, valor}))].filter(x => x.valor > 0), fmtR)}</div>
+    <div class="panel"><h3 style="margin-bottom:10px">Para onde foi</h3>${barrasH([{nome:`Condomínio (${S.config.custos.condominioPct}% das mensalidades)`, valor:r.cond}, ...r.fixos, {nome:'Remuneração de professores', valor:r.profs}, ...Object.entries(r.variaveis.reduce((o, l) => { o[l.categoria || 'Outros'] = (o[l.categoria || 'Outros'] || 0) + Number(l.valor || 0); return o; }, {})).map(([nome, valor]) => ({nome, valor}))].filter(x => x.valor > 0), fmtR)}</div>
     <div class="panel"><h3 style="margin-bottom:10px">Mensalidades previstas por plano</h3>${barrasH(Object.entries(porPlano).map(([nome, valor]) => ({nome, valor})).sort((a, b) => b.valor - a.valor))}</div>
     <div class="panel"><h3 style="margin-bottom:10px">Por modalidade</h3>${barrasH(Object.entries(porMod).map(([id, valor]) => ({nome:mod(id)?.nome || 'Sem modalidade', valor, cor:mod(id)?.cor})).sort((a, b) => b.valor - a.valor))}
       <p class="muted small">Quem faz mais de uma modalidade no mesmo plano tem o valor dividido igualmente entre elas.</p></div>
@@ -2469,12 +2478,17 @@ function formConteudo(data, tid){
   const tr = t.mod === 'kids' ? 'kids' : 'adulto', key = `${data}_${tid}`, p = S.presencas[key] || {}, c = p.conteudo || {blocos:[], obs:''};
   abrirModal(`<form id="fCont"><h2>Conteúdo da aula</h2><p class="muted small">${esc(mod(t.mod)?.nome || '')}, ${fmtBR(data)} ${t.hora}. Marque os blocos do currículo SBA trabalhados hoje.</p>
     <div class="checks" style="margin-bottom:12px">${CURRICULO[tr].map(b => `<label class="check"><input type="checkbox" name="bl" value="${b.id}" ${(c.blocos || []).includes(b.id) ? 'checked' : ''}>${esc(b.nome.split(':')[0])}</label>`).join('')}</div>
+    ${(() => { const its = arr(((S.pedag.semanas[segundaDe(data)] || {})[tr] || {}).itens); return its.length ? `<div class="notice" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span>${its.length} posição(ões) da semana cadastrada(s).</span><button type="button" class="btn small primary" id="usarSem">Usar posições da semana</button></div>` : ''; })()}
     <div class="field"><label for="cObs">Detalhes (opcional)</label><textarea id="cObs" name="obs" placeholder="Ex.: saídas de montada 1 e 2, guarda fechada oponente de joelhos 1 a 3">${esc(c.obs || '')}</textarea></div>
     <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  let tecSem = null;
+  const bs = $('#usarSem'); if (bs) bs.addEventListener('click', () => { const its = arr(((S.pedag.semanas[segundaDe(data)] || {})[tr] || {}).itens); tecSem = its;
+    its.forEach(id => { const b = blocoDeTec(id); const cb = b && document.querySelector(`#fCont input[name=bl][value="${b}"]`); if (cb) cb.checked = true; });
+    const ta = $('#cObs'); ta.value = [ta.value.trim(), its.map(nomeTec).join('; ')].filter(Boolean).join('\n'); toast('Posições da semana aplicadas'); });
   $('#fCont').addEventListener('submit', e => {
     e.preventDefault(); const fd = new FormData(e.target);
     const pp = S.presencas[key] ||= {data, turma:tid, alunos:{}};
-    pp.conteudo = {blocos:fd.getAll('bl'), obs:String(fd.get('obs') || '').trim()};
+    pp.conteudo = {blocos:fd.getAll('bl'), obs:String(fd.get('obs') || '').trim(), ...(tecSem ? {tecnicas:tecSem} : (c.tecnicas ? {tecnicas:c.tecnicas} : {}))};
     pp.prof ||= ($('#profAula') || {}).value || profPadrao();
     registrar(`Registrou conteúdo da aula de ${fmtBR(data)} ${t.hora}`);
     salvar(); fecharModal(); render(); toast('Conteúdo da aula salvo');
@@ -2674,6 +2688,144 @@ function imprimirRelatorio(m){
   w.document.close();
 }
 
+/* ============ Remuneração de professores ============ */
+// Parte de cada modalidade dentro do valor de um plano (ex.: combo JJ + Muay Thai = 180 MT + 100 JJ)
+function rateioPlano(p){
+  if (!p) return {};
+  const rr = Object.fromEntries(Object.entries(p.rateio || {}).filter(([, v]) => Number(v) > 0)); if (Object.keys(rr).length) return rr;
+  return {[(p.mods || [])[0] || 'jj']: Number(p.valor) || 0};
+}
+function parcelasMensalidade(x){
+  // x: item de mensalidadesDoMes já pago
+  const p = x.plano; if (!p) return {};
+  const rat = rateioPlano(p), soma = Object.values(rat).reduce((s, v) => s + (Number(v) || 0), 0) || Number(p.valor) || 1;
+  const fator = (Number(x.valor) || 0) / soma, out = {};
+  Object.entries(rat).forEach(([m, v]) => { out[m] = (Number(v) || 0) * fator; });
+  return out;
+}
+const regrasRem = () => S.config.remuneracao || {};
+function remuneracaoMes(m){
+  const pct = (Number(S.config.custos.condominioPct) || 0) / 100, ms = mensalidadesDoMes(m);
+  const res = {};
+  Object.entries(regrasRem()).forEach(([pid, cfg]) => {
+    const itens = (cfg.regras || []).map(r => {
+      const md = mod(r.mod)?.nome || r.mod;
+      if (r.tipo === 'fixo') return {mod:r.mod, nome:md, tipo:'fixo', valor:Number(r.valor) || 0};
+      const pagos = ms.filter(x => x.st === 'pago' && parcelasMensalidade(x)[r.mod] > 0);
+      const bruto = pagos.reduce((s, x) => s + parcelasMensalidade(x)[r.mod], 0), cond = bruto * pct, liq = bruto - cond;
+      const ativosMod = ms.filter(x => x.st !== 'isento' && (rateioPlano(x.plano)[r.mod] || 0) > 0);
+      return {mod:r.mod, nome:md, tipo:'percentual', pct:Number(r.pct) || 0, pagantes:pagos.length, pendentes:ativosMod.length - pagos.length, bruto, cond, liquido:liq, valor:liq * (Number(r.pct) || 0) / 100};
+    });
+    res[pid] = {nome:cfg.nome, itens, total:itens.reduce((s, i) => s + i.valor, 0)};
+  });
+  return res;
+}
+const totalRemuneracao = m => Object.values(remuneracaoMes(m)).reduce((s, r) => s + r.total, 0);
+function cardRem(r, m){
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3>${esc(r.nome || 'Professor')}</h3><strong style="font-family:var(--cond);font-size:30px">${fmtR(r.total)}</strong></div>
+    ${(r.itens || []).map(i => i.tipo === 'fixo' ? `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)"><span>${esc(i.nome)}: valor fixo</span><strong>${fmtR(i.valor)}</strong></div>`
+      : `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:10px"><span>${esc(i.nome)}: ${i.pct}% do líquido</span><strong>${fmtR(i.valor)}</strong></div>
+        <div class="muted small">${i.pagantes} mensalidade(s) paga(s)${i.pendentes > 0 ? `, ${i.pendentes} ainda em aberto` : ''}. Base ${fmtR(i.bruto)} − condomínio ${fmtR(i.cond)} = líquido ${fmtR(i.liquido)}</div></div>`).join('')}
+    <p class="muted small" style="margin:8px 0 0">Referente às mensalidades de ${nomeMes(m)} já pagas. O valor cresce conforme os pagamentos entram.</p></div>`;
+}
+function finProfessores(m){
+  const rem = remuneracaoMes(m), cfgs = regrasRem();
+  const equipeOpts = ONLINE ? Object.entries(equipe).filter(([, u]) => ['prof','admin'].includes(u.papel)) : [];
+  return `<p class="muted small">Regras de remuneração por professor e o cálculo do mês. Valor fixo entra inteiro; percentual é aplicado sobre o valor líquido das mensalidades pagas da modalidade (já descontados os ${S.config.custos.condominioPct}% do condomínio). No combo, a parte de cada modalidade segue a divisão definida no plano (Ajustes, Planos e custos). O total entra automaticamente nos custos do mês.</p>
+  <div style="margin-bottom:14px"><button class="btn primary" data-act="rem-edit">Adicionar professor</button></div>
+  ${Object.keys(cfgs).length ? Object.entries(rem).map(([pid, r]) => `<div>${cardRem(r, m)}<div style="margin:-8px 0 16px"><button class="btn small ghost" data-act="rem-edit" data-id="${pid}">Editar regras</button></div></div>`).join('') : '<div class="empty">Nenhum professor com regra de remuneração.</div>'}
+  <p class="small"><strong>Total do mês: ${fmtR(Object.values(rem).reduce((s, r) => s + r.total, 0))}</strong></p>
+  ${ONLINE ? `<p class="muted small">Cada professor vê só o próprio valor, na tela inicial e em "Minha remuneração". ${equipeOpts.length ? '' : 'Para vincular, o professor precisa ter conta aprovada no app.'}</p>` : '<p class="muted small">Na versão online, cada professor vê só o próprio valor ao entrar no app com a conta dele.</p>'}`;
+}
+function formRem(pid){
+  const cfg = pid ? regrasRem()[pid] : {nome:'', regras:[{mod:'jj', tipo:'fixo', valor:0}]};
+  const usuarios = ONLINE ? Object.entries(equipe).filter(([id, u]) => ['prof','admin'].includes(u.papel) && (id === pid || !regrasRem()[id])) : [];
+  const linha = (r, i) => `<div class="grid3" style="align-items:end" data-regra="${i}">
+    <div class="field"><label>Modalidade</label><select name="mod${i}">${S.config.modalidades.map(md => `<option value="${md.id}" ${r.mod === md.id ? 'selected' : ''}>${esc(md.nome)}</option>`).join('')}</select></div>
+    <div class="field"><label>Tipo</label><select name="tipo${i}"><option value="fixo" ${r.tipo === 'fixo' ? 'selected' : ''}>Valor fixo (R$)</option><option value="percentual" ${r.tipo === 'percentual' ? 'selected' : ''}>% do líquido</option></select></div>
+    <div class="field"><label>Valor (R$ ou %)</label><input type="number" step="0.01" name="v${i}" value="${r.tipo === 'percentual' ? (r.pct ?? '') : (r.valor ?? '')}"></div></div>`;
+  abrirModal(`<form id="fRem"><h2>${pid ? 'Editar' : 'Adicionar'} remuneração</h2>
+    ${ONLINE ? `<div class="field"><label for="rUid">Professor (conta no app)</label><select id="rUid" name="uid" ${pid ? 'disabled' : ''} required>${pid ? `<option value="${pid}">${esc(cfg.nome)}</option>` : usuarios.map(([id, u]) => `<option value="${id}">${esc(u.nome)} (${esc(u.email)})</option>`).join('')}</select></div>` : `<div class="field"><label for="rNome">Nome do professor</label><input type="text" id="rNome" name="nome" required value="${esc(cfg.nome)}"></div>`}
+    <div id="regras">${(cfg.regras || []).map(linha).join('')}</div>
+    <button type="button" class="btn small ghost" data-act="rem-add-regra">Adicionar outra modalidade</button>
+    <p class="muted small">Exemplo: Jiu-Jitsu, valor fixo, 400; Muay Thai, % do líquido, 50.</p>
+    <div class="actions">${pid ? `<button type="button" class="btn danger" data-act="rem-del" data-id="${pid}" style="margin-right:auto">Remover</button>` : ''}<button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  window._remLinha = linha;
+  $('#fRem').addEventListener('submit', e => {
+    e.preventDefault(); const fd = new FormData(e.target);
+    const id = pid || (ONLINE ? fd.get('uid') : uid()); if (!id) return toast('Escolha o professor.');
+    const nome = ONLINE ? (equipe[id] || {}).nome || cfg.nome : fd.get('nome');
+    const regras = [...document.querySelectorAll('[data-regra]')].map(el => { const i = el.dataset.regra, tipo = fd.get('tipo' + i), v = Number(fd.get('v' + i)) || 0;
+      return tipo === 'fixo' ? {mod:fd.get('mod' + i), tipo, valor:v} : {mod:fd.get('mod' + i), tipo, pct:v}; }).filter(r => r.valor || r.pct);
+    if (!regras.length) return toast('Informe pelo menos uma regra com valor.');
+    S.config.remuneracao ||= {}; S.config.remuneracao[id] = {nome, regras};
+    registrar(`Definiu a remuneração de ${nome}`); salvar(); fecharModal(); render(); toast('Remuneração salva');
+  });
+}
+function viewMinhaRemuneracao(){
+  const dados = ONLINE ? (R[`remuneracao/${S.meta.uid}`] || null) : null;
+  if (isAdmin() && !ONLINE) return `<p><a href="#/inicio" class="muted small">Voltar</a></p><div class="head"><h1>Remuneração</h1></div><p class="muted">No modo teste, veja o cálculo de todos em Financeiro, aba Professores.</p>`;
+  if (!dados || !dados.meses) return `<p><a href="#/inicio" class="muted small">Voltar</a></p><div class="head"><h1>Minha remuneração</h1></div><div class="empty">Ainda não há remuneração cadastrada para você. Fale com a administração.</div>`;
+  const ms = Object.keys(dados.meses).sort().reverse();
+  return `<p><a href="#/inicio" class="muted small">Voltar</a></p><div class="head"><h1>Minha remuneração</h1></div>
+  <p class="muted small">Previsão calculada sobre as mensalidades já pagas de cada mês. Atualizada em ${dados.atualizado ? fmtBR(dados.atualizado.slice(0, 10)) : '—'}, sempre que a administração usa o app.</p>
+  ${ms.map(m => `<h2 style="margin-top:8px">${nomeMes(m)}</h2>${cardRem({nome:dados.nome, ...dados.meses[m], itens:arr(dados.meses[m].itens)}, m)}`).join('')}`;
+}
+function cardMinhaRem(){
+  if (!ONLINE) return '';
+  const d = R[`remuneracao/${S.meta.uid}`]; if (!d || !d.meses) return '';
+  const m = mesAtual(), mm = d.meses[m]; if (!mm) return '';
+  return `<a class="num" href="#/remuneracao" style="margin-bottom:26px"><strong style="font-size:30px">${fmtR(mm.total)}</strong><span>minha remuneração em ${nomeMes(m)} até agora (toque para detalhes)</span></a>`;
+}
+
+/* ============ Posições da semana ============ */
+const segundaDe = d => { const x = parseD(d); const dw = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dw); return fmtISO(x); };
+function nomeTec(id){
+  if (String(id).startsWith('x')) return (S.pedag.extras[id] || {}).nome || 'Técnica removida';
+  for (const tr of ['adulto','kids']) for (const b of CURRICULO[tr]) { const i = b.itens.find(i => i.id === id); if (i) return i.nome; }
+  return id;
+}
+const blocoDeTec = id => { for (const tr of ['adulto','kids']) for (const b of CURRICULO[tr]) if (b.itens.some(i => i.id === id)) return b.id; return (S.pedag.extras[id] || {}).bloco || ''; };
+function viewSemana(){
+  const ini = ui.semIni || segundaDe(hoje()), fim = addDias(ini, 6), sem = S.pedag.semanas[ini] || {};
+  const col = tr => { const its = arr((sem[tr] || {}).itens);
+    return `<div class="panel"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h3>${tr === 'kids' ? 'Jiu-Jitsu kids' : 'Adultos (Jiu-Jitsu e NoGi)'}</h3><button class="btn small primary" data-act="sem-add" data-v="${tr}">Adicionar técnicas</button></div>
+      <div class="list" style="margin-top:10px">${its.length ? its.map((id, k) => `<div class="row" style="cursor:default"><span class="tag">${k + 1}</span><span class="grow">${esc(nomeTec(id))}${String(id).startsWith('x') ? ' <span class="tag warn">manual</span>' : ''}</span><button class="btn small danger" data-act="sem-rem" data-v="${tr}" data-id="${id}" aria-label="Tirar">Tirar</button></div>`).join('') : '<div class="empty">Nenhuma técnica escolhida.</div>'}</div></div>`; };
+  return `<div class="filters" style="align-items:center"><span style="display:flex;gap:6px;flex:0"><button class="btn small ghost" data-act="sem-nav" data-n="-7" aria-label="Semana anterior">‹</button><button class="btn small ghost" data-act="sem-nav" data-n="7" aria-label="Próxima semana">›</button></span>
+    <strong style="flex:1">Semana de ${fmtBR(ini).slice(0, 5)} a ${fmtBR(fim)}</strong>
+    <span style="display:flex;gap:6px;flex-wrap:wrap;flex:0"><button class="btn small ghost" data-act="sem-copiar">Copiar da semana anterior</button><button class="btn small ghost" data-act="sem-wa">Enviar no WhatsApp</button></span></div>
+  <div class="grid2" style="gap:0 16px;align-items:start">${col('adulto')}${col('kids')}</div>
+  <div class="field"><label for="semObs">Observações da semana</label><textarea id="semObs" placeholder="Ex.: foco em saídas de montada para quem vai competir">${esc(sem.obs || '')}</textarea></div>
+  <p class="muted small">Na chamada, o botão "Usar posições da semana" registra estas técnicas como conteúdo da aula com um toque.</p>`;
+}
+function formSemanaAdd(tr){
+  const ini = ui.semIni || segundaDe(hoje()), atuais = new Set(arr(((S.pedag.semanas[ini] || {})[tr] || {}).itens));
+  const extras = Object.values(S.pedag.extras).filter(x => x.trilha === tr);
+  abrirModal(`<form id="fSem"><h2>Adicionar técnicas (${tr === 'kids' ? 'kids' : 'adultos'})</h2>
+    <input type="search" id="semBusca" placeholder="Buscar técnica" style="margin-bottom:10px">
+    <div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px" id="semLista">
+      ${extras.length ? `<p class="small" style="margin:6px 0"><strong>Técnicas manuais da SAFE</strong></p>${extras.map(x => `<label class="check" data-txt="${esc(norm(x.nome))}" style="margin:4px 0;width:100%"><input type="checkbox" name="t" value="${x.id}" ${atuais.has(x.id) ? 'checked' : ''}>${esc(x.nome)}</label>`).join('')}` : ''}
+      ${CURRICULO[tr].map(b => `<p class="small" style="margin:10px 0 4px" data-grp><strong>${esc(b.nome)}</strong></p>${b.itens.map(i => `<label class="check" data-txt="${esc(norm(i.nome + ' ' + b.nome))}" style="margin:4px 0;width:100%"><input type="checkbox" name="t" value="${i.id}" ${atuais.has(i.id) ? 'checked' : ''}>${esc(i.nome)}</label>`).join('')}`).join('')}
+    </div>
+    <div class="field" style="margin-top:12px"><label for="semNova">Técnica manual (fora do currículo)</label><input type="text" id="semNova" name="nova" placeholder="Ex.: Raspagem de gancho com pegada na manga"></div>
+    <div class="field"><label for="semBloco">Bloco da técnica manual (opcional)</label><select id="semBloco" name="bloco"><option value="">Sem bloco</option>${CURRICULO[tr].map(b => `<option value="${b.id}">${esc(b.nome.split(':')[0])}</option>`).join('')}</select></div>
+    <p class="muted small">A técnica manual fica salva para usar em outras semanas.</p>
+    <div class="actions"><button type="button" class="btn ghost" data-act="fechar">Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`);
+  $('#semBusca').addEventListener('input', e => { const q = norm(e.target.value); document.querySelectorAll('#semLista [data-txt]').forEach(l => { l.style.display = !q || l.dataset.txt.includes(q) ? '' : 'none'; }); });
+  $('#fSem').addEventListener('submit', e => {
+    e.preventDefault(); const fd = new FormData(e.target); const ids = fd.getAll('t');
+    const nova = String(fd.get('nova') || '').trim();
+    if (nova){ const id = 'x' + uid(); S.pedag.extras[id] = {id, nome:nova, trilha:tr, bloco:fd.get('bloco') || '', por:quem(), data:hoje()}; ids.push(id); registrar(`Cadastrou técnica manual: ${nova}`); }
+    const sem = S.pedag.semanas[ini] ||= {}; const ant = arr((sem[tr] || {}).itens).filter(id => ids.includes(id));
+    sem[tr] = {itens:[...ant, ...ids.filter(id => !ant.includes(id))]};
+    registrar(`Definiu posições da semana de ${fmtBR(ini)} (${tr === 'kids' ? 'kids' : 'adultos'})`); salvar(); fecharModal(); render(); toast('Posições da semana salvas');
+  });
+}
+function textoSemana(ini){
+  const s = S.pedag.semanas[ini] || {}, lst = tr => arr((s[tr] || {}).itens).map((id, k) => `${k + 1}. ${nomeTec(id)}`).join('\n');
+  return `*SAFE: posições da semana de ${fmtBR(ini).slice(0, 5)} a ${fmtBR(addDias(ini, 6))}*${lst('adulto') ? `\n\n*Adultos*\n${lst('adulto')}` : ''}${lst('kids') ? `\n\n*Kids*\n${lst('kids')}` : ''}${s.obs ? `\n\n${s.obs}` : ''}\n\nOss!`;
+}
+
 /* ============ Versão online (Firebase) ============ */
 const CAMPOS_FIN = ['plano','vencimento','bolsa','bolsaPct','desconto','descontoMotivo'];
 let auth = null, db = null, usuario = null, estadoAuth = ONLINE ? 'carregando' : 'ok', pronto = false, base = {}, R = {};
@@ -2706,7 +2858,7 @@ function iniciarFirebase(){
     const h = ref.on('value', snap => {
       const v = snap.val();
       if (!v){ criarPerfil(u); return; }
-      S.meta.nome = v.nome; S.meta.email = v.email;
+      S.meta.nome = v.nome; S.meta.email = v.email; S.meta.uid = u.uid;
       if (v.papel === 'admin' || v.papel === 'prof'){
         if (papelAtivo !== v.papel){ S.meta.papel = v.papel; papelAtivo = v.papel; estadoAuth = 'ok'; iniciarDados(); }
       } else { pararDados(); papelAtivo = null; estadoAuth = v.papel === 'bloqueado' ? 'bloqueado' : 'pendente'; render(); }
@@ -2725,7 +2877,7 @@ async function criarPerfil(u){
 function pararDados(){ subsDados.forEach(f => f()); subsDados = []; pronto = false; R = {}; }
 function iniciarDados(){
   pararDados(); render();
-  const paths = ['config','alunos','presencas','campeonatos','crescimento','pedagogico', ...(isAdmin() ? ['configFin','alunosFin','financeiro','lixeira','historico'] : [])];
+  const paths = [...(!isAdmin() && usuario ? [`remuneracao/${usuario.uid}`] : []), 'config','alunos','presencas','campeonatos','crescimento','pedagogico', ...(isAdmin() ? ['configFin','alunosFin','financeiro','lixeira','historico','remuneracao'] : [])];
   const carregado = {};
   paths.forEach(p => {
     const ref = db.ref(p);
@@ -2756,12 +2908,15 @@ function reconstruir(){
   const semPrefixo = pre => Object.keys(base).forEach(k => { if (k === pre || k.startsWith(pre + '/')) delete base[k]; });
   if (!R.config){ semPrefixo('config'); iniciar = true; }
   if (isAdmin() && (!R.configFin || R.configFin.inicioFinanceiro == null)){ semPrefixo('configFin'); iniciar = true; }
+  if (isAdmin()){ const remR = R.remuneracao || {}; Object.keys(base).filter(k => k.startsWith('remuneracao/')).forEach(k => { const id = k.slice(12); const rv = remR[id] ? JSON.stringify(ordenarObj(remR[id])) : null; if (rv !== base[k]){ if (rv) base[k] = rv; else delete base[k]; iniciar = true; } });
+    Object.keys(remR).forEach(id => { if (!base['remuneracao/' + id]){ base['remuneracao/' + id] = '"x"'; iniciar = true; } }); }
   if (isAdmin()){ const lim = new Date(Date.now() - 180 * 864e5).toISOString(); if (Object.values(R.historico || {}).some(x => x.data < lim) || Object.values(R.lixeira || {}).some(x => x.data < new Date(Date.now() - 30 * 864e5).toISOString())){ Object.keys(R.historico || {}).forEach(id => { if (!S.log[id]) base['historico/' + id] = '"x"'; }); Object.keys(R.lixeira || {}).forEach(id => { if (!S.lixeira[id]) base['lixeira/' + id] = '"x"'; }); iniciar = true; } }
   const primeiro = !pronto; pronto = true;
   if (iniciar) salvarOnline();
   if (primeiro) render(); else agendarRender();
 }
 // Grava campo a campo: duas pessoas editando o mesmo registro não apagam o trabalho uma da outra
+function ordenarObj(v){ if (Array.isArray(v)) return v.map(ordenarObj); if (v && typeof v === 'object'){ const o = {}; Object.keys(v).sort().forEach(k => { if (v[k] !== undefined && v[k] !== null) o[k] = ordenarObj(v[k]); }); return o; } return v; }
 function achatar(m, caminho, v, prof){
   if (v === undefined || v === null) return;
   if (prof <= 0 || typeof v !== 'object' || Array.isArray(v)){ m[caminho] = JSON.stringify(v); return; }
@@ -2769,10 +2924,13 @@ function achatar(m, caminho, v, prof){
 }
 function mapear(){
   const m = {};
-  const {planos, custos, pix, msgCobranca, inicioFinanceiro, ...cfg} = S.config;
+  const {planos, custos, pix, msgCobranca, inicioFinanceiro, remuneracao, ...cfg} = S.config;
   achatar(m, 'config', cfg, 1);
   if (isAdmin()){
-    achatar(m, 'configFin', {planos, custos, pix, msgCobranca, inicioFinanceiro}, 1);
+    achatar(m, 'configFin', {planos, custos, pix, msgCobranca, inicioFinanceiro, remuneracao}, 1);
+    { const mesesRem = [addMes(mesAtual(), -2), addMes(mesAtual(), -1), mesAtual()], porProf = {};
+      mesesRem.forEach(mm => Object.entries(remuneracaoMes(mm)).forEach(([pid, r]) => { (porProf[pid] ||= {nome:r.nome, atualizado:hoje(), meses:{}}).meses[mm] = {total:r.total, itens:r.itens}; }));
+      Object.entries(porProf).forEach(([pid, v]) => { m['remuneracao/' + pid] = JSON.stringify(ordenarObj(v)); }); }
     Object.entries(S.fin.mensalidades).forEach(([mes, regs]) => Object.entries(regs || {}).forEach(([id, r]) => achatar(m, `financeiro/mensalidades/${mes}/${id}`, r, 1)));
     ['lancamentos','vendas'].forEach(k => Object.entries(S.fin[k]).forEach(([id, v]) => achatar(m, `financeiro/${k}/${id}`, v, 1)));
     Object.entries(S.fin.produtos).forEach(([id, v]) => achatar(m, `financeiro/produtos/${id}`, v, 2));
@@ -2790,6 +2948,8 @@ function mapear(){
   Object.entries(S.cres.nps).forEach(([id, v]) => achatar(m, 'crescimento/nps/' + id, v, 0));
   Object.entries(S.pedag.tecnicas || {}).forEach(([aid, ts]) => Object.entries(ts || {}).forEach(([tid, v]) => achatar(m, `pedagogico/tecnicas/${aid}/${tid}`, v, 0)));
   Object.entries(S.pedag.cerimonias || {}).forEach(([id, v]) => achatar(m, `pedagogico/cerimonias/${id}`, v, 1));
+  Object.entries(S.pedag.semanas || {}).forEach(([id, v]) => achatar(m, `pedagogico/semanas/${id}`, v, 2));
+  Object.entries(S.pedag.extras || {}).forEach(([id, v]) => achatar(m, `pedagogico/extras/${id}`, v, 1));
   Object.entries(S.pedag.professores || {}).forEach(([id, v]) => achatar(m, `pedagogico/professores/${id}`, v, 1));
   Object.entries(S.pedag.comunicados || {}).forEach(([id, v]) => achatar(m, `pedagogico/comunicados/${id}`, v, 2));
   Object.entries(S.pedag.notas || {}).forEach(([aid, ns]) => Object.entries(ns || {}).forEach(([nid, v]) => achatar(m, `pedagogico/notas/${aid}/${nid}`, v, 0)));
@@ -3015,6 +3175,14 @@ document.addEventListener('click', e => {
     'fr-ok': () => confirmarFotoChamada(),
     'bol-edit': () => formBoletim(id, el.dataset.c),
     'fichaTab': () => { ui.fichaTab = el.dataset.v; render(); },
+    'rem-edit': () => formRem(id),
+    'rem-del': async () => { if (await confirmar('Remover as regras de remuneração deste professor?', 'Remover')){ registrar(`Removeu a remuneração de ${regrasRem()[id]?.nome || ''}`); delete S.config.remuneracao[id]; salvar(); fecharModal(); render(); } },
+    'rem-add-regra': () => { const box = $('#regras'), n = box.querySelectorAll('[data-regra]').length; box.insertAdjacentHTML('beforeend', window._remLinha({mod:'mt', tipo:'percentual', pct:''}, n)); },
+    'sem-nav': () => { ui.semIni = addDias(ui.semIni || segundaDe(hoje()), Number(el.dataset.n)); render(); },
+    'sem-add': () => formSemanaAdd(el.dataset.v),
+    'sem-rem': () => { const ini = ui.semIni || segundaDe(hoje()), s2 = S.pedag.semanas[ini]; if (!s2 || !s2[el.dataset.v]) return; s2[el.dataset.v].itens = arr(s2[el.dataset.v].itens).filter(x => x !== id); salvar(); render(); },
+    'sem-copiar': () => { const ini = ui.semIni || segundaDe(hoje()), ant = S.pedag.semanas[addDias(ini, -7)]; if (!ant) return toast('A semana anterior não tem posições cadastradas.'); S.pedag.semanas[ini] = JSON.parse(JSON.stringify(ant)); registrar(`Copiou posições para a semana de ${fmtBR(ini)}`); salvar(); render(); toast('Posições copiadas'); },
+    'sem-wa': () => window.open(`https://wa.me/?text=${encodeURIComponent(textoSemana(ui.semIni || segundaDe(hoje())))}`, '_blank'),
     'tec-set': () => { const t = ((S.pedag.tecnicas ||= {})[id] ||= {}); const n = Number(el.dataset.n); if (n) t[el.dataset.t] = {n, d:hoje(), por:quem()}; else delete t[el.dataset.t]; registrar(`Atualizou o nível técnico de ${S.alunos[id]?.nome || ''}`); salvar(); render(); },
     'conteudo': () => formConteudo(el.dataset.data, el.dataset.t),
     'cer-edit': () => formCerimonia(id),
@@ -3147,6 +3315,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'bolCiclo'){ ui.bolCiclo = t.value; renderDepois(); }
   else if (t.id === 'bolTurma'){ ui.bolTurma = t.value; renderDepois(); }
   else if (t.id === 'bolEnt'){ S.config.boletimEntrega = t.value; ui.bolCiclo = t.value ? t.value.slice(0, 7) : ui.bolCiclo; registrar(`Definiu a entrega do boletim infantil para ${fmtBR(t.value)}`); salvar(); renderDepois(); }
+  else if (t.id === 'semObs'){ const ini = ui.semIni || segundaDe(hoje()); (S.pedag.semanas[ini] ||= {}).obs = t.value; salvar(); }
   else if (t.id === 'curTrilha'){ ui.curTrilha = t.value; renderDepois(); }
   else if (t.id === 'cresMes'){ ui.cresMes = t.value || hoje().slice(0, 7); renderDepois(); }
   else if (t.id === 'profMes'){ ui.profMes = t.value || hoje().slice(0, 7); renderDepois(); }
